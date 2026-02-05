@@ -46,31 +46,35 @@ python main.py
 AgentCore Runtime - Agent Deployment Example
 ============================================================
 
-[Step 1] Creating agent with AgentCore SDK...
+[Step 1] Creating agent with Strands framework...
 ✓ Agent created successfully
 
 [Step 2] Testing agent locally...
-  Test input: {'prompt': 'What is 2 + 2?'}
-✓ Local test passed (agent is ready)
+  Input:  "What is 2 + 2? Reply with just the number."
+  Output: "4"
+✓ Local test passed
 
-[Step 3] Deploy to AgentCore Runtime:
+[Step 3] Creating AgentCore app...
+✓ AgentCore app created
+
+[Step 4] Deploy to AgentCore Runtime:
   --------------------------------------------------
-  # Configure the agent
-  agentcore configure -e main.py
+  # Initialize AgentCore project
+  agentcore init
 
   # Deploy to AWS
-  agentcore launch
+  agentcore deploy
 
-  # Test the deployed agent
-  agentcore invoke '{"prompt": "Hello, AgentCore!"}'
+  # Invoke your deployed agent
+  agentcore invoke "Hello, AgentCore!"
   --------------------------------------------------
 
-✓ Ready for deployment with: agentcore launch
+✓ Ready for deployment!
 
 Key benefits of AgentCore Runtime:
-  • MicroVM isolation - each session in dedicated VM
-  • Up to 8-hour execution time
-  • I/O wait is free (no charge while waiting for LLM)
+  • MicroVM isolation - each session runs in dedicated VM
+  • Up to 8-hour execution time for complex tasks
+  • I/O wait is FREE (no charge while waiting for LLM)
   • 100MB payload support for multi-modal content
 
 ============================================================
@@ -81,14 +85,14 @@ Key benefits of AgentCore Runtime:
 After running `main.py` locally, deploy to AgentCore:
 
 ```bash
-# Configure your agent
-agentcore configure -e main.py
+# Initialize AgentCore project
+agentcore init
 
 # Deploy to AgentCore Runtime
-agentcore launch
+agentcore deploy
 
 # Invoke your deployed agent
-agentcore invoke '{"prompt": "Tell me a joke"}'
+agentcore invoke "Tell me a joke"
 ```
 
 ## Learn More
