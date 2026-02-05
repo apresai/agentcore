@@ -60,8 +60,14 @@ def main():
     """Main function demonstrating AgentCore Code Interpreter."""
 
     print("=" * 60)
-    print("AgentCore Code Interpreter Demo")
+    print("AgentCore Code Interpreter - Deep Thought's Calculator")
     print("=" * 60)
+    print()
+    print('  "I checked it very thoroughly," said the computer,')
+    print('  "and that quite definitely is the answer."')
+    print()
+    print("  Deep Thought computed for 7.5 million years.")
+    print("  Code Interpreter does it in seconds.")
 
     region = os.getenv("AWS_REGION", "us-east-1")
 
@@ -94,26 +100,38 @@ def main():
         print("Code: Calculate statistics for sample data")
 
         python_code = '''
-import statistics
+# ==============================================
+# Deep Thought's Verification Calculations
+# "The Answer is 42. Let me prove it."
+# ==============================================
 
-# Sample data - imagine this comes from a real dataset
-data = [23, 45, 67, 89, 12, 34, 56, 78, 90, 10, 95, 42, 38, 71, 55]
+calculations = [
+    ("6 * 7", 6 * 7),
+    ("84 / 2", int(84 / 2)),
+    ("2 * 3 * 7", 2 * 3 * 7),
+    ("6 ** 2 + 6", 6 ** 2 + 6),
+    ("126 / 3", int(126 / 3)),
+]
 
-# Calculate statistics
-mean = statistics.mean(data)
-stdev = statistics.stdev(data)
-min_val = min(data)
-max_val = max(data)
-median = statistics.median(data)
+print("Deep Thought Verification Results:")
+print("=" * 42)  # 42 characters wide, naturally
 
-# Print results
-print("Data Analysis Results:")
-print(f"  Sample size: {len(data)}")
-print(f"  Mean: {mean:.1f}")
-print(f"  Std Dev: {stdev:.1f}")
-print(f"  Median: {median:.1f}")
-print(f"  Min: {min_val}, Max: {max_val}")
-print(f"  Range: {max_val - min_val}")
+all_42 = True
+for expr, result in calculations:
+    status = "CONFIRMED" if result == 42 else "ERROR"
+    if result != 42:
+        all_42 = False
+    print(f"  {expr:>12} = {result:>4}  [{status}]")
+
+print("=" * 42)
+if all_42:
+    print(f"  All {len(calculations)} calculations confirmed: The Answer is 42.")
+else:
+    print("  WARNING: The Universe may be broken.")
+
+print()
+print("  Fun fact: 42 is 101010 in binary.")
+print(f"  Verified: bin(42) = {bin(42)}")
 '''
 
         # Execute the code
@@ -153,28 +171,41 @@ print(f"  Range: {max_val - min_val}")
         print("-" * 40)
 
         # Bonus: Execute another calculation
-        print("\n[Bonus] Running a more complex calculation...")
+        print("\n[Bonus] The Question about six and nine...")
 
         complex_code = '''
+# ==============================================
+# The Question: What do you get if you multiply
+# six by nine? (in base 13, that IS 42)
+# ==============================================
 import math
 
-# Calculate compound interest
-principal = 10000
-rate = 0.07  # 7% annual
-years = 10
-compounds_per_year = 12
+def base_convert(num, base):
+    """Convert number to given base."""
+    if num == 0:
+        return "0"
+    digits = []
+    while num:
+        digits.append(str(num % base))
+        num //= base
+    return "".join(reversed(digits))
 
-# Compound interest formula
-amount = principal * (1 + rate/compounds_per_year) ** (compounds_per_year * years)
-interest_earned = amount - principal
+# The famous "six by nine" calculation
+result_base10 = 6 * 9  # = 54 in base 10
+result_base13 = base_convert(42, 13)  # 42 in base 13
 
-print(f"Investment Growth Calculator:")
-print(f"  Principal: ${principal:,.2f}")
-print(f"  Rate: {rate*100}% annually")
-print(f"  Time: {years} years")
-print(f"  Compounding: Monthly")
-print(f"  Final Amount: ${amount:,.2f}")
-print(f"  Interest Earned: ${interest_earned:,.2f}")
+print("The Question & The Answer:")
+print("-" * 42)
+print(f"  6 x 9 = {result_base10} (base 10)")
+print(f"  42 in base 13 = {result_base13}")
+print(f"  {result_base13} in base 13 = 4*13 + 2 = {4*13 + 2} (base 10)")
+print()
+print("  As Douglas Adams said:")
+print("  'I may be a sorry case, but I don\\'t write jokes in base 13.'")
+print()
+print(f"  Bonus: 42! has {len(str(math.factorial(42)))} digits")
+print(f"  Bonus: 42 in binary = {bin(42)}")
+print(f"  Bonus: 42 in hex = {hex(42)}")
 '''
 
         exec_response2 = client.invoke_code_interpreter(
@@ -227,11 +258,11 @@ print(f"  Interest Earned: ${interest_earned:,.2f}")
     # Summary
     print("\n" + "=" * 60)
     print("Code Interpreter Benefits:")
-    print("  • Secure sandbox: Code runs isolated from your systems")
-    print("  • No setup: Use aws.codeinterpreter.v1 immediately")
-    print("  • Multi-language: Python, JavaScript, TypeScript")
-    print("  • Large files: Up to 5GB via S3 integration")
-    print("  • Long running: Sessions up to 8 hours")
+    print("  • Secure sandbox - code runs in its own little universe")
+    print("  • No setup - like the Guide, it just works")
+    print("  • Multi-language - Python, JavaScript, TypeScript")
+    print("  • Large files - up to 5GB (enough for the Guide's database)")
+    print("  • 8-hour sessions - still faster than Deep Thought")
     print("=" * 60)
 
 

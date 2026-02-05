@@ -1,0 +1,7 @@
+# AgentCore Demo Test Framework
+# "Time is an illusion. Lunchtime doubly so."
+
+pytest>=8.0.0
+pytest-timeout>=2.3.0
+boto3>=1.34.0
+python-dotenv>=1.0.0

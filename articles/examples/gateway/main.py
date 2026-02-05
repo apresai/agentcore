@@ -59,8 +59,18 @@ def main():
     """Main function demonstrating AgentCore Gateway."""
 
     print("=" * 60)
-    print("AgentCore Gateway Demo")
+    print("AgentCore Gateway - The Babel Fish")
     print("=" * 60)
+    print()
+    print("  ~~ The Babel Fish of APIs ~~")
+    print("  Translating any protocol to MCP so your")
+    print("  agents can understand the Universe.")
+    print()
+    print('  "The Babel fish is small, yellow, leech-like, and')
+    print('   probably the oddest thing in the Universe."')
+    print()
+    print("  Gateway does for APIs what the Babel Fish does for")
+    print("  language: instant, universal translation.")
 
     region = os.getenv("AWS_REGION", "us-east-1")
 
@@ -113,7 +123,7 @@ def main():
 
         gateway_response = control_client.create_gateway(
             name=gateway_name,
-            description="Demo gateway for AgentCore article - shows real AWS API usage",
+            description="Babel Fish Gateway - universal protocol translator",
             roleArn=role_arn,
             authorizerType='NONE',  # No auth for demo (use IAM or JWT in production)
             protocolType='MCP'
@@ -200,12 +210,16 @@ def main():
 
     # Summary
     print("\n" + "=" * 60)
-    print("Gateway Benefits:")
-    print("  • Unified access: All tools via MCP protocol")
-    print("  • Any backend: Lambda, REST APIs, external MCP servers")
-    print("  • Semantic search: Find tools by natural language")
-    print("  • Built-in auth: OAuth, JWT, API keys handled for you")
+    print("Gateway Benefits (The Babel Fish Advantage):")
+    print("  • Universal translation: Any API speaks MCP")
+    print("  • Any backend: Lambda, REST, MCP servers, Smithy")
+    print("  • Semantic search: Find tools by asking, not browsing")
+    print("  • Built-in auth: OAuth, JWT, API keys - all handled")
     print("  • 1-click integrations: Salesforce, Slack, Jira, GitHub")
+    print()
+    print('  "It is of course well known that careless talk costs')
+    print('   lives, but the full scale of the problem is not always')
+    print('   appreciated." Use Gateway. Talk to any API.')
     print("=" * 60)
 
 

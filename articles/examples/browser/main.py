@@ -110,8 +110,18 @@ def main():
     """Main function demonstrating AgentCore Browser."""
 
     print("=" * 60)
-    print("AgentCore Browser Demo")
+    print("AgentCore Browser - The Hitchhiker's Guide")
     print("=" * 60)
+    print()
+    print("  +=========================================+")
+    print("  |                                         |")
+    print("  |            DON'T PANIC                  |")
+    print("  |                                         |")
+    print("  +=========================================+")
+    print()
+    print("  Your agent is about to browse the web.")
+    print("  You can watch everything via Live View.")
+    print("  Like the Guide itself: comprehensive and observable.")
 
     region = os.getenv("AWS_REGION", "us-east-1")
 
@@ -181,11 +191,11 @@ def main():
 
         # Show what you can do with the session
         print("\n[Info] What you can do with browser sessions:")
-        print("  • Connect with Playwright for programmatic control")
-        print("  • Use Live View URL for real-time monitoring")
-        print("  • Navigate, click, fill forms, take screenshots")
+        print("  • Navigate the web like Ford Prefect researches planets")
+        print("  • Live View: watch your agent browse in real time")
+        print("  • Take screenshots for your own Guide entries")
         print("  • Execute JavaScript in the browser context")
-        print("  • Record sessions for audit and replay")
+        print("  • Record sessions - a complete audit trail")
 
     except ClientError as e:
         error_code = e.response.get('Error', {}).get('Code', 'Unknown')
@@ -218,12 +228,16 @@ def main():
 
     # Summary
     print("\n" + "=" * 60)
-    print("Browser Benefits:")
-    print("  • Secure isolation: Each session runs in dedicated microVM")
-    print("  • No setup: Use aws.browser.v1 immediately")
-    print("  • Live view: Watch agents browse in real-time")
+    print("Browser Benefits (Guide Research Edition):")
+    print("  • Isolation: Each session gets its own microVM universe")
+    print("  • No setup: aws.browser.v1 - instant, like the Guide")
+    print("  • Live view: Watch your agent. Don't Panic.")
     print("  • Session recording: Full audit trail to S3")
-    print("  • Playwright compatible: Use familiar automation tools")
+    print("  • Playwright: Automate like a seasoned field researcher")
+    print()
+    print('  "A towel is about the most massively useful thing')
+    print('   an interstellar hitchhiker can have."')
+    print("  A browser session is the next most useful.")
     print("=" * 60)
 
 

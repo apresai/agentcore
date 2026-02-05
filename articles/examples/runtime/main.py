@@ -107,8 +107,18 @@ def main():
     """Main function demonstrating AgentCore Runtime setup."""
 
     print("=" * 60)
-    print("AgentCore Runtime - Agent Deployment Example")
+    print("AgentCore Runtime - Deep Thought")
     print("=" * 60)
+    print()
+    print("  +-----------------------------------------------+")
+    print("  |          DEEP THOUGHT COMPUTING ...            |")
+    print('  |  "The Answer to the Great Question ...         |')
+    print('  |   of Life, the Universe and Everything ...     |')
+    print('  |   Is ... Forty-two."                           |')
+    print("  +-----------------------------------------------+")
+    print()
+    print("  After 7.5 million years of computation, Deep Thought")
+    print("  delivered The Answer. AgentCore Runtime does it in seconds.")
 
     # Step 1: Create the agent
     print("\n[Step 1] Creating agent with Strands framework...")
@@ -168,10 +178,14 @@ def main():
 
     print("\n✓ Ready for deployment!")
     print("\nKey benefits of AgentCore Runtime:")
-    print("  • MicroVM isolation - each session runs in dedicated VM")
-    print("  • Up to 8-hour execution time for complex tasks")
-    print("  • I/O wait is FREE (no charge while waiting for LLM)")
+    print("  • MicroVM isolation - each session gets its own universe")
+    print("  • Up to 8 hours of execution (7.5M years, condensed)")
+    print("  • I/O wait is FREE (Deep Thought didn't have that luxury)")
     print("  • 100MB payload support for multi-modal content")
+    print()
+    print('  "I think the problem, to be quite honest with you, is that')
+    print("   you've never actually known what the Question is.\"")
+    print("                                    - Deep Thought")
 
     print("\n" + "=" * 60)
 

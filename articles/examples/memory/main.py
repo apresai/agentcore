@@ -22,16 +22,40 @@ Expected output:
 
 import os
 import time
-from dotenv import load_dotenv
+import random
 
-# Load environment variables
-load_dotenv()
+# Optional: load environment variables from .env file
+try:
+    from dotenv import load_dotenv
+    load_dotenv()
+except ImportError:
+    pass
 
-# Using boto3 for broader compatibility
 import boto3
+
+# Marvin's existential observations - worth remembering (he'd disagree)
+MARVIN_QUOTES = [
+    "I think you ought to know I'm feeling very depressed.",
+    "Life? Don't talk to me about life.",
+    "Here I am, brain the size of a planet, and they tell me to take you up to the bridge.",
+    "I've been talking to the ship's computer. It hates me.",
+    "The first ten million years were the worst. And the second ten million... they were the worst too.",
+]
+
 
 def main():
     """Main function demonstrating AgentCore Memory."""
+
+    print("=" * 60)
+    print("AgentCore Memory - Marvin's Remembrance Engine")
+    print("=" * 60)
+    print()
+    print('  "I think you ought to know I\'m feeling very depressed."')
+    print("                              - Marvin the Paranoid Android")
+    print()
+    print("  Marvin remembers everything. He just wishes he didn't.")
+    print("  AgentCore Memory gives your agents the same gift (or curse).")
+    print()
 
     region = os.getenv("AWS_REGION", "us-east-1")
 
@@ -50,7 +74,7 @@ def main():
         print(f"\nCreating memory: {memory_name}...")
         create_response = control_client.create_memory(
             name=memory_name,
-            description="Demo memory for article example",
+            description="Marvin's memory bank - remembering so you don't have to",
             eventExpiryDuration=3,  # 3 days TTL for short-term (min 3, max 365 days)
             memoryStrategies=[
                 {
@@ -82,8 +106,9 @@ def main():
             raise Exception("Memory did not become active within timeout")
 
         # Step 2: Store a conversation event (short-term memory)
-        print("\nStoring conversation event...")
-        actor_id = "demo_user_123"
+        marvin_quote = random.choice(MARVIN_QUOTES)
+        print(f"\nStoring Marvin's observation: \"{marvin_quote}\"")
+        actor_id = "marvin_the_paranoid_android"
         session_id = f"session_{int(time.time())}"
 
         from datetime import datetime, timezone
@@ -98,13 +123,13 @@ def main():
                 {
                     'conversational': {
                         'role': 'USER',
-                        'content': {'text': 'I prefer window seats and vegetarian meals on flights'}
+                        'content': {'text': f'Marvin, how are you feeling today?'}
                     }
                 },
                 {
                     'conversational': {
                         'role': 'ASSISTANT',
-                        'content': {'text': 'I\'ve noted your preferences: window seats and vegetarian meals. I\'ll remember this for future bookings!'}
+                        'content': {'text': marvin_quote}
                     }
                 }
             ]
@@ -140,7 +165,7 @@ def main():
                 memoryId=memory_id,
                 namespace="preferences",
                 searchCriteria={
-                    'searchQuery': "travel preferences",
+                    'searchQuery': "Marvin feelings depressed",
                     'topK': 5
                 }
             )
@@ -158,7 +183,9 @@ def main():
 
         print("\n✓ Memory working successfully!")
         print(f"\nMemory ID: {memory_id}")
-        print("Use this ID to retrieve memories in future sessions.")
+        print()
+        print('  "I have a million ideas. They all point to certain death."')
+        print("  But at least now Marvin's memories persist across sessions.")
 
     except Exception as e:
         print(f"\n❌ Error: {e}")
