@@ -79,6 +79,30 @@ If a service requires deployment or complex setup, the example should:
 
 The goal is working code that demonstrates real AgentCore capabilities, not fake demonstrations.
 
+## TODO
+
+### Articles to Write
+Use `/agentcore-article` with the prompts in `articles/00-article-ideas.md` for each.
+
+- [ ] #6: MCP Gateway Deep Dive
+- [ ] #7: Agent Security with Cedar Policies
+- [ ] #8: Building a Customer Support Agent (tutorial)
+- [ ] #9: Multi-Agent SRE Assistant (tutorial)
+- [ ] #10: Device Management Agent for IoT (tutorial)
+- [ ] #11: Deep Research Agents on AgentCore
+- [ ] #12: Enterprise Agent Platform Architecture
+- [ ] #13: Cost Optimization Strategies
+- [ ] #14: Observability Best Practices
+- [ ] #15: AgentCore vs Self-Hosted LangGraph
+- [ ] #16: Migrating from PoC to Production
+- [ ] #17: Using Strands Agents with AgentCore
+- [ ] #18: LangGraph on AgentCore
+- [ ] #19: OpenAI Agents SDK to AWS
+
+### Housekeeping
+- [x] Push latest commit to origin
+- [x] `venv/` dirs already ignored by root `.gitignore`
+
 ## Key Technical Details
 
 - **Frameworks**: LangGraph, Strands, CrewAI, LlamaIndex, Google ADK, OpenAI Agents SDK
