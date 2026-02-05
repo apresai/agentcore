@@ -56,6 +56,29 @@ Skills are stored in `.claude/skills/` and symlinked to `~/.claude/skills/` for 
 - Cross-reference official AWS documentation
 - Use AgentCore CLI commands (`agentcore create`, `agentcore deploy`, `agentcore invoke`)
 
+## Code Examples - STRICT REQUIREMENTS
+
+**NO MOCKING ALLOWED.** All code examples must:
+
+1. **Use real AWS APIs** - Never mock AWS services, boto3 clients, or AgentCore SDK
+2. **Actually work** - Code must be copy-paste runnable with real AWS credentials
+3. **Call real services** - Examples should make actual API calls (Bedrock, AgentCore, etc.)
+4. **Test against production** - Verify examples work against real AWS infrastructure before committing
+
+If a service requires deployment or complex setup, the example should:
+- Show the real SDK/API calls (not mocks)
+- Include clear prerequisites for what needs to be deployed first
+- Provide deployment commands if applicable
+
+**Forbidden patterns:**
+- `class MockXxx` or `class FakeXxx`
+- `def mock_xxx()`
+- `unittest.mock`, `MagicMock`, `patch`
+- Simulated responses or hardcoded fake data pretending to be API responses
+- Any class/function that pretends to be an AWS service
+
+The goal is working code that demonstrates real AgentCore capabilities, not fake demonstrations.
+
 ## Key Technical Details
 
 - **Frameworks**: LangGraph, Strands, CrewAI, LlamaIndex, Google ADK, OpenAI Agents SDK

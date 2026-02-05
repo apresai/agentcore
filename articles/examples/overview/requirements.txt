@@ -1,0 +1,14 @@
+# AgentCore Overview Example - Dependencies
+# Install with: pip install -r requirements.txt
+
+# Core AgentCore SDK
+bedrock-agentcore>=0.1.0
+
+# Strands Agents framework (AWS's open-source agent framework)
+strands-agents>=0.1.0
+
+# AWS SDK (for programmatic agent invocation)
+boto3>=1.35.0
+
+# Optional: Load environment variables from .env file
+python-dotenv>=1.0.0
