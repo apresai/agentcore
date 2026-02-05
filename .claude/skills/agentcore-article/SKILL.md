@@ -121,7 +121,19 @@ If new provable data was found:
 
 ### Step 4: Plan Code Examples
 
-**CRITICAL: All code must be REAL and RUNNABLE, not pseudo-code snippets.**
+**CRITICAL: All code must be REAL and RUNNABLE against live AWS infrastructure.**
+
+**These articles are sales/marketing demos of AgentCore running on AWS. The entire point is to show real AWS services working.** Every example must actually deploy to or call real AWS APIs so readers see AgentCore in action.
+
+**ABSOLUTELY NO MOCKING. Forbidden patterns:**
+- `unittest.mock`, `MagicMock`, `patch`, `@mock`
+- `class MockXxx`, `class FakeXxx`, `def mock_xxx()`
+- Simulated responses or hardcoded fake data pretending to be API responses
+- Any class/function that pretends to be an AWS service
+- Local-only demos that skip AWS calls — always hit real APIs
+- Comments like "# In production, this would call..." — call it NOW
+
+**If an example can't call real AWS APIs, it shouldn't exist.** Find a different way to demonstrate the feature that does use real APIs, or include clear prerequisites for what needs to be deployed first with actual deployment commands.
 
 Based on format, plan the code:
 
@@ -678,7 +690,7 @@ if __name__ == "__main__":
 
 **CRITICAL: Run the code against real AWS infrastructure to verify it works before delivering the article.**
 
-This step prevents publishing broken code examples that frustrate readers. Real tests > mock tests.
+These are sales demos. If the code doesn't actually call AWS and produce real output, it's worthless. Never skip this step. Never fake the output. The reader should be able to run the exact same code and see the exact same AWS responses.
 
 #### Test Execution Flow
 
