@@ -1,5 +1,7 @@
 # What is AWS Bedrock AgentCore? A Complete Guide
 
+![AgentCore Overview](images/overview-article.webp)
+
 Building production AI agents is hard. Most teams spend months building infrastructure before their agent handles a single customer request. Security reviews, compliance audits, scaling concerns, and operational overhead consume engineering cycles that should go toward building actual agent capabilities.
 
 **Amazon Bedrock AgentCore** changes this equation. It provides enterprise-grade infrastructure for AI agents as a managed service, letting you focus on what your agents do rather than how they run.

@@ -1,5 +1,7 @@
 Amazon Bedrock Agents or AgentCore? Here's how to decide:
 
+![AgentCore vs Bedrock Agents](images/comparison-article.webp)
+
 AWS offers two ways to build AI agents. One is fully managed, the other gives you full control. Choosing wrong means rebuilding later.
 
 **Amazon Bedrock Agents** is configuration-based: define agents, connect action groups and knowledge bases, deploy without code. Best for managed simplicity.

@@ -1,5 +1,7 @@
 Deploy your first AI agent in 5 minutes.
 
+![AgentCore Getting Started](images/getting-started-article.webp)
+
 No containers. No Kubernetes. No infrastructure headaches.
 
 **Amazon Bedrock AgentCore** is a serverless platform for running AI agents at enterprise scale. Each session runs in an isolated microVM, your code deploys with 4 commands, and you only pay for actual compute (not while waiting for LLM responses).

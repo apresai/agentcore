@@ -192,9 +192,19 @@ Use `gimage generate` with Lego builder theme in **AWS brand colors**.
 | **Observability** | "Lego detectives examining orange (#FF9900) traces and metrics on tiny dark blue (#232F3E) monitors with magnifying glasses, AWS logo badge, noir detective lighting" |
 | **Evaluations** | "Lego teachers grading papers with orange (#FF9900) checkmarks at a miniature dark blue (#232F3E) desk, AWS logo on chalkboard, classroom diorama" |
 
-**gimage command:**
+**gimage + WebP conversion commands:**
 ```bash
+# 1. Generate the image (gimage outputs PNG)
 gimage generate "[prompt]" -o /Users/chad/dev/agentcore/articles/images/[feature]-article.png
+
+# 2. Resize to 800x800 for web
+gimage resize -i /Users/chad/dev/agentcore/articles/images/[feature]-article.png --width 800 --height 800 -o /Users/chad/dev/agentcore/articles/images/[feature]-article-resized.png
+
+# 3. Convert to WebP (high quality, ~50-120KB vs ~2MB PNG)
+cwebp -q 85 -mt -sharp_yuv -preset photo /Users/chad/dev/agentcore/articles/images/[feature]-article-resized.png -o /Users/chad/dev/agentcore/articles/images/[feature]-article.webp
+
+# 4. Clean up intermediate files
+rm /Users/chad/dev/agentcore/articles/images/[feature]-article.png /Users/chad/dev/agentcore/articles/images/[feature]-article-resized.png
 ```
 
 ### Step 6: Generate Article
@@ -208,7 +218,7 @@ Assemble the article using these templates:
 ```markdown
 [Hook - problem statement in ~140 chars that creates urgency]
 
-![AgentCore [Feature]](images/[feature]-article.png)
+![AgentCore [Feature]](images/[feature]-article.webp)
 
 [2-3 sentences explaining the pain point and why it matters]
 
@@ -266,7 +276,7 @@ Expected output:
 ```markdown
 [Hook - attention-grabbing problem in ~140 chars]
 
-![AgentCore [Feature]](images/[feature]-article.png)
+![AgentCore [Feature]](images/[feature]-article.webp)
 
 [Context paragraph - why this matters for the audience, specific pain points]
 
@@ -349,7 +359,7 @@ Expected output:
 ```markdown
 # [Title - Clear, Benefit-Focused]
 
-![AgentCore [Feature]](images/[feature]-article.png)
+![AgentCore [Feature]](images/[feature]-article.webp)
 
 ## The Problem
 
@@ -810,7 +820,7 @@ Save all files and provide links to the user.
 /Users/chad/dev/agentcore/articles/
 ├── [feature]-[format].md           # Article
 ├── images/
-│   └── [feature]-article.png       # Generated art
+│   └── [feature]-article.webp       # Generated art
 └── examples/
     └── [feature]/                  # Runnable code
         ├── main.py (or .ts/.go)
@@ -822,7 +832,7 @@ Save all files and provide links to the user.
 ```
 Article:  /Users/chad/dev/agentcore/articles/[feature]-[format].md
 Code:     /Users/chad/dev/agentcore/articles/examples/[feature]/
-Image:    /Users/chad/dev/agentcore/articles/images/[feature]-article.png
+Image:    /Users/chad/dev/agentcore/articles/images/[feature]-article.webp
 ```
 
 Examples:
@@ -839,7 +849,7 @@ Examples:
 Article generated successfully!
 
 📄 Article:  /Users/chad/dev/agentcore/articles/[feature]-[format].md
-🎨 Image:    /Users/chad/dev/agentcore/articles/images/[feature]-article.png
+🎨 Image:    /Users/chad/dev/agentcore/articles/images/[feature]-article.webp
 💻 Code:     /Users/chad/dev/agentcore/articles/examples/[feature]/
 
 [Character count] characters ([format] format, ~X min read)
@@ -884,7 +894,7 @@ Before delivering the article:
 **Art:**
 - [ ] Art generated with `gimage generate`
 - [ ] Prompt includes AWS brand colors (#FF9900 orange, #232F3E dark blue)
-- [ ] Image link included in article: `![AgentCore [Feature]](images/[feature]-article.png)`
+- [ ] Image link included in article: `![AgentCore [Feature]](images/[feature]-article.webp)`
 
 **Files Saved:**
 - [ ] Article saved to `articles/[feature]-[format].md`

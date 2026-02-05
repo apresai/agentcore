@@ -1,6 +1,6 @@
 Your AI agent forgets everything after each session. Here's the fix:
 
-![AgentCore Memory](images/memory-article.png)
+![AgentCore Memory](images/memory-article.webp)
 
 Every conversation starts from zero. User mentions they prefer window seats? Gone. They told you their budget last week? Forgotten. Without memory, your agents can't build relationships or learn from interactions.
 

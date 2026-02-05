@@ -1,6 +1,6 @@
 Running AI agents in production is a nightmare. You need container orchestration, auto-scaling, security isolation, and 24/7 monitoring—just to get started.
 
-![AgentCore Runtime](images/runtime-article.png)
+![AgentCore Runtime](images/runtime-article.webp)
 
 Most teams spend weeks on infrastructure before their agent handles a single request. When something breaks at 3 AM? That's on you.
 
