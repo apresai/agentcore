@@ -17,10 +17,22 @@ This is a knowledge base for AWS Bedrock AgentCore - a collection of research, d
 ## Repository Structure
 
 ```
+.claude/skills/    # Claude Code skills (portable with repo)
 research/          # Documentation summaries for each AgentCore service
 articles/          # Published articles showcasing AgentCore
 examples/          # Code examples demonstrating AgentCore features
 ```
+
+## Skills
+
+This repo includes two Claude Code skills. See `SKILLS.md` for full documentation.
+
+| Skill | Purpose | Trigger |
+|-------|---------|---------|
+| `/agentcore` | Build agents, API help, troubleshooting | "How do I deploy an agent?" |
+| `/agentcore-article` | Create articles, update research | "Write an article about Memory" |
+
+Skills are stored in `.claude/skills/` and symlinked to `~/.claude/skills/` for portability.
 
 ## AgentCore Services (Quick Reference)
 
