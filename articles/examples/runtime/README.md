@@ -50,8 +50,8 @@ AgentCore Runtime - Agent Deployment Example
 ✓ Agent created successfully
 
 [Step 2] Testing agent locally...
-  Input:  "What is 2 + 2? Reply with just the number."
-  Output: "4"
+  Input:  "What is the answer to life, the universe, and everything? Reply with just the number."
+  Output: "42"
 ✓ Local test passed
 
 [Step 3] Creating AgentCore app...

@@ -17,7 +17,7 @@ Usage:
 
 Expected output:
     ✓ Agent created successfully
-    ✓ Local test passed: "4"
+    ✓ Local test passed: "42"
     ✓ Ready for deployment
 """
 
@@ -123,7 +123,7 @@ def main():
 
     # Step 2: Test the agent locally
     print("\n[Step 2] Testing agent locally...")
-    test_prompt = "What is 2 + 2? Reply with just the number."
+    test_prompt = "What is the answer to life, the universe, and everything? Reply with just the number."
     print(f"  Input:  \"{test_prompt}\"")
 
     try:
