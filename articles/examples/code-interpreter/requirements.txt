@@ -1,0 +1,5 @@
+# AgentCore Code Interpreter Example
+# https://docs.aws.amazon.com/bedrock-agentcore/
+
+boto3>=1.34.0
+python-dotenv>=1.0.0

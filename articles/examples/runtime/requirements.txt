@@ -2,8 +2,8 @@
 # https://docs.aws.amazon.com/bedrock-agentcore/
 
 # Core AgentCore packages
-bedrock-agentcore>=1.0.0
-bedrock-agentcore-starter-toolkit>=1.0.0
+bedrock-agentcore>=0.1.0
+bedrock-agentcore-starter-toolkit>=0.2.0
 
 # Agent framework (Strands is the simplest to start with)
 strands-agents>=0.1.0
