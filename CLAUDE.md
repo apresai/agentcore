@@ -143,4 +143,4 @@ us.anthropic.claude-haiku-4-5-20251001-v1:0
 - **Models**: Any model (Bedrock, OpenAI, Gemini, Claude, Nova, Llama, Mistral)
 - **Protocols**: MCP (Model Context Protocol), A2A (Agent to Agent)
 - **Pricing**: Consumption-based, I/O wait is free, $200 free tier for new customers
-- **Regions**: us-east-1, us-west-2, ap-southeast-2, eu-central-1
+- **Regions**: 14 regions for core services (Runtime, Memory, Gateway, Identity) including us-east-1, us-east-2, us-west-2, eu-central-1, eu-west-1, eu-west-2, eu-west-3, eu-north-1, ap-south-1, ap-southeast-1, ap-southeast-2, ap-northeast-1, ap-northeast-2, ca-central-1

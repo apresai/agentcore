@@ -102,7 +102,7 @@ research_agent = graph.compile()
 # Wrap in AgentCore Runtime
 app = BedrockAgentCoreApp()
 
-@app.entrypoint()
+@app.entrypoint
 async def main(request):
     result = await research_agent.ainvoke({"topic": request.get("topic", "")})
     return {"report": result["synthesis"]}

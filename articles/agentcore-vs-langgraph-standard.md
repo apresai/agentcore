@@ -68,7 +68,7 @@ agent = graph.compile()
 
 app = BedrockAgentCoreApp()
 
-@app.entrypoint()
+@app.entrypoint
 async def main(request):
     result = agent.invoke({"messages": [{"role": "user", "content": request["prompt"]}]})
     return {"response": result["response"]}
@@ -107,7 +107,7 @@ In self-hosted containers, a prompt injection achieving code execution can reach
 |--------|-------------|-----------|
 | **Scale-to-zero** | No (minimum tasks) | Yes |
 | **Cold start** | 30-60s (container pull) | Seconds (microVM boot) |
-| **Max concurrent** | Task count limited | 1,000/endpoint (adjustable) |
+| **Max concurrent** | Task count limited | 1,000/account (adjustable) |
 | **Scaling speed** | Minutes | Seconds |
 | **Max session** | Unlimited (always billed) | 8 hours |
 

@@ -81,7 +81,7 @@ Every agent, regardless of team or framework, connects to the same Gateway for t
 # requirements.txt
 boto3>=1.34.0
 strands-agents>=0.1.0
-bedrock-agentcore-sdk>=1.0.0
+bedrock-agentcore>=1.0.0
 python-dotenv>=1.0.0
 ```
 
@@ -1711,7 +1711,7 @@ from bedrock_agentcore.runtime import BedrockAgentCoreApp
 app = BedrockAgentCoreApp()
 
 
-@app.entrypoint()
+@app.entrypoint
 async def handle_request(request):
     """Handle incoming support requests with full platform integration."""
     customer_id = request.get("customer_id", "unknown")
@@ -1859,7 +1859,7 @@ def create_platform_dashboard():
                     "title": "Gateway Tool Invocations",
                     "metrics": [
                         [
-                            "AWS/BedrockAgentCore",
+                            "Bedrock-AgentCore",
                             "GatewayInvocations",
                             "GatewayId",
                             GATEWAY_ID,
@@ -1875,13 +1875,13 @@ def create_platform_dashboard():
                     "title": "Policy Decisions (Allow/Deny)",
                     "metrics": [
                         [
-                            "AWS/BedrockAgentCore",
+                            "Bedrock-AgentCore",
                             "PolicyAllowCount",
                             "GatewayId",
                             GATEWAY_ID,
                         ],
                         [
-                            "AWS/BedrockAgentCore",
+                            "Bedrock-AgentCore",
                             "PolicyDenyCount",
                             "GatewayId",
                             GATEWAY_ID,
@@ -1896,8 +1896,8 @@ def create_platform_dashboard():
                 "properties": {
                     "title": "Memory Operations",
                     "metrics": [
-                        ["AWS/BedrockAgentCore", "MemoryCreateEvents"],
-                        ["AWS/BedrockAgentCore", "MemoryRetrievals"],
+                        ["Bedrock-AgentCore", "MemoryCreateEvents"],
+                        ["Bedrock-AgentCore", "MemoryRetrievals"],
                     ],
                     "period": 300,
                     "stat": "Sum",
@@ -1909,12 +1909,12 @@ def create_platform_dashboard():
                     "title": "Agent Session Duration (p50/p99)",
                     "metrics": [
                         [
-                            "AWS/BedrockAgentCore",
+                            "Bedrock-AgentCore",
                             "SessionDuration",
                             {"stat": "p50"},
                         ],
                         [
-                            "AWS/BedrockAgentCore",
+                            "Bedrock-AgentCore",
                             "SessionDuration",
                             {"stat": "p99"},
                         ],
@@ -1937,7 +1937,7 @@ def create_policy_denial_alarm():
     cloudwatch.put_metric_alarm(
         AlarmName="EnterprisePlatform-PolicyDenialSpike",
         MetricName="PolicyDenyCount",
-        Namespace="AWS/BedrockAgentCore",
+        Namespace="Bedrock-AgentCore",
         Statistic="Sum",
         Period=300,
         EvaluationPeriods=1,

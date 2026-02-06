@@ -31,7 +31,7 @@ This tutorial builds a customer support agent using four AgentCore services work
 # requirements.txt
 boto3>=1.34.0
 strands-agents>=0.1.0
-bedrock-agentcore-sdk>=1.0.0
+bedrock-agentcore>=1.0.0
 python-dotenv>=1.0.0
 ```
 
@@ -290,7 +290,7 @@ from bedrock_agentcore.runtime import BedrockAgentCoreApp
 
 app = BedrockAgentCoreApp()
 
-@app.entrypoint()
+@app.entrypoint
 async def handle_request(request):
     customer_id = request.get("customer_id", "unknown")
     session_id = request.get("session_id", "default")

@@ -67,7 +67,7 @@ model = BedrockModel(model_id="us.anthropic.claude-haiku-4-5-20251001-v1:0", reg
 agent = Agent(model=model, system_prompt="You are a helpful assistant.")
 app = BedrockAgentCoreApp()
 
-@app.entrypoint()
+@app.entrypoint
 async def main(request):
     return {"response": str(agent(request.get("prompt", "")))}
 
@@ -91,7 +91,7 @@ from bedrock_agentcore.memory.constants import ConversationalMessage, MessageRol
 
 memory = MemorySessionManager(memory_id="YOUR_MEMORY_ID", region_name="us-east-1")
 
-@app.entrypoint()
+@app.entrypoint
 async def main(request):
     session = memory.create_memory_session(
         actor_id=request.get("user_id", "anonymous"),
@@ -164,7 +164,7 @@ from bedrock_agentcore.identity import IdentityClient
 
 identity = IdentityClient(region_name='us-east-1')
 
-@app.entrypoint()
+@app.entrypoint
 async def main(request):
     user_token = request.get("bearer_token")
     if not user_token:

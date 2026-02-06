@@ -326,11 +326,13 @@ New AWS customers receive **$200 in Free Tier credits** for AgentCore services.
 
 ## Regional Availability
 
-AgentCore is available in:
-- us-east-1 (N. Virginia)
-- us-west-2 (Oregon)
-- eu-central-1 (Frankfurt)
-- ap-southeast-2 (Sydney)
+AgentCore core services (Runtime, Memory, Gateway, Identity) are available in 14 regions:
+- **US**: us-east-1 (N. Virginia), us-east-2 (Ohio), us-west-2 (Oregon)
+- **Europe**: eu-central-1 (Frankfurt), eu-west-1 (Ireland), eu-west-2 (London), eu-west-3 (Paris), eu-north-1 (Stockholm)
+- **Asia Pacific**: ap-south-1 (Mumbai), ap-southeast-1 (Singapore), ap-southeast-2 (Sydney), ap-northeast-1 (Tokyo), ap-northeast-2 (Seoul)
+- **Canada**: ca-central-1 (Canada)
+
+Memory is also available in sa-east-1 (Sao Paulo). Observability and Policy are available in a subset of 9 regions. Evaluations is currently available in 4 regions.
 
 ## Key Takeaways
 

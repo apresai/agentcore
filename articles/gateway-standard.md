@@ -161,7 +161,7 @@ Expected output:
 - **Zero integration code**: Drop in an OpenAPI spec or Lambda ARN — Gateway generates MCP tools automatically
 - **Semantic discovery**: Agents find the right tools from thousands using natural language search, reducing prompt size and latency
 - **Built-in auth**: Inbound (IAM, JWT, OAuth) and outbound (OAuth, API keys) authentication handled at the gateway layer
-- **Scale to thousands**: Up to 1,000 tools per gateway with 100 targets, semantic search keeps agents efficient. The Babel Fish merely handled every spoken language in the universe — Gateway handles REST, GraphQL, Lambda, and MCP, which is arguably a more hostile ecosystem.
+- **Scale to thousands**: Up to 1,000 tools per target with 100 targets per gateway, semantic search keeps agents efficient. The Babel Fish merely handled every spoken language in the universe — Gateway handles REST, GraphQL, Lambda, and MCP, which is arguably a more hostile ecosystem.
 
 ## Common Patterns
 

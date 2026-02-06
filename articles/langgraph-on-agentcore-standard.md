@@ -101,14 +101,14 @@ agent = graph.compile()
 
 app = BedrockAgentCoreApp()
 
-@app.entrypoint()
+@app.entrypoint
 async def main(request):
     user_id = request.get("user_id", "default")
     session_id = request.get("session_id", "default")
     prompt = request.get("prompt", "")
 
     # Retrieve past context from AgentCore Memory
-    memories = memory_client.retrieve_memories(
+    memories = memory_client.retrieve_memory_records(
         memory_id=MEMORY_ID,
         actor_id=user_id,
         query=prompt,

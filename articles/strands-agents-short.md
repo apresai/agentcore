@@ -29,11 +29,11 @@ gateway = GatewayClient(gateway_id="gw-your-id")
 agent = Agent(model=model, tools=gateway.list_tools())
 app = BedrockAgentCoreApp()
 
-@app.entrypoint()
+@app.entrypoint
 async def invoke(request):
     prompt = request.get("prompt", "Hello!")
     user_id = request.get("user_id", "default")
-    memories = memory.retrieve_memories(
+    memories = memory.retrieve_memory_records(
         memory_id="mem-your-id", actor_id=user_id, query=prompt)
     context = "\n".join([m["content"] for m in memories])
     result = agent(f"Context:\n{context}\n\n{prompt}" if context else prompt)
