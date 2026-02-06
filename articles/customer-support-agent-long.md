@@ -374,7 +374,7 @@ Start with Memory and a single Gateway tool to validate the pattern. Add CRM int
 As Marvin might say: "Here I am, brain the size of a planet, and they ask me to handle support tickets. But at least now I remember who I'm talking to." That is the difference between a depressed robot and a capable agent -- context. Give your agent Memory, and it will never ask a customer to repeat themselves again. Even Marvin would approve. Grudgingly.
 
 📚 **Documentation**: https://docs.aws.amazon.com/bedrock-agentcore/latest/devguide/
-💻 **Full runnable code**: `articles/examples/memory/`
+💻 **Full runnable code**: `articles/examples/memory/` | [View complete example on GitHub](https://github.com/apresai/agentcore/tree/main/articles/examples/memory/)
 🔧 **GitHub samples**: https://github.com/awslabs/amazon-bedrock-agentcore-samples/
 
 #AWS #AI #AgentCore #CustomerSupport #Memory #Tutorial

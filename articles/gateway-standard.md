@@ -172,7 +172,7 @@ Teams typically start with a single gateway per environment, adding Lambda targe
 Start with a gateway and one Lambda target to validate the flow. Add semantic search when your tool count exceeds what fits comfortably in a single prompt. Use 1-click integrations for SaaS tools instead of building custom connectors. Douglas Adams once wrote that the Babel Fish, by effectively removing all barriers to communication, caused more and bloodier wars than anything else in the history of creation. Fortunately, Gateway just causes fewer integration meetings — which is the opposite of war, and nearly as satisfying.
 
 📚 Documentation: https://docs.aws.amazon.com/bedrock-agentcore/latest/devguide/gateway.html
-💻 Full runnable example: `articles/examples/gateway/`
+💻 Full runnable example: `articles/examples/gateway/` | [View complete example on GitHub](https://github.com/apresai/agentcore/tree/main/articles/examples/gateway/)
 🔧 GitHub samples: https://github.com/awslabs/amazon-bedrock-agentcore-samples/
 
 #AWS #AI #AgentCore #Gateway #MCP #Developers

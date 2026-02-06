@@ -320,6 +320,8 @@ Enable CloudWatch Transaction Search in your account, deploy your agent with `aw
 
 As the Guide itself notes in large, friendly letters: DON'T PANIC. But do instrument your agents. Panicking is optional; observability is not.
 
+[View complete example on GitHub](https://github.com/apresai/agentcore/tree/main/articles/examples/runtime/)
+
 Documentation: https://docs.aws.amazon.com/bedrock-agentcore/latest/devguide/observability.html
 CloudWatch GenAI Observability: https://console.aws.amazon.com/cloudwatch/home#gen-ai-observability
 GitHub samples: https://github.com/awslabs/amazon-bedrock-agentcore-samples/

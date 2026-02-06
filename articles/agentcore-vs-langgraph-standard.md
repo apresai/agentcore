@@ -150,6 +150,8 @@ For new LangGraph deployments, start on AgentCore -- you eliminate weeks of infr
 
 You do not need two heads and three arms to run a LangGraph agent in production. You just need a towel and `agentcore deploy`.
 
+[View examples on GitHub](https://github.com/apresai/agentcore/tree/main/articles/examples/)
+
 ## Resources
 
 - AgentCore docs: https://docs.aws.amazon.com/bedrock-agentcore/latest/devguide/

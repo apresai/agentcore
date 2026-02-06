@@ -237,5 +237,6 @@ The probability of getting good production infrastructure by managing it yoursel
 Documentation: https://docs.aws.amazon.com/bedrock-agentcore/latest/devguide/
 LangGraph docs: https://langchain-ai.github.io/langgraph/
 GitHub samples: https://github.com/awslabs/amazon-bedrock-agentcore-samples/
+💻 Full runnable example: `articles/examples/langgraph/` | [View complete example on GitHub](https://github.com/apresai/agentcore/tree/main/articles/examples/langgraph/)
 
 #AWS #AI #AgentCore #LangGraph #Developers

@@ -175,7 +175,7 @@ Teams typically layer policies by role: broad `permit` rules for read-only tools
 Create a policy engine, attach it to your gateway in LOG_ONLY mode, and review decisions in CloudWatch before switching to ENFORCE. Start with simple permit/forbid rules and add role-based conditions as you identify access patterns. As Prostetnic Vogon Jeltz would say: "Resistance is useless!" — and with Cedar policy enforcement at the gateway boundary, he'd finally be right about something.
 
 📚 Documentation: https://docs.aws.amazon.com/bedrock-agentcore/latest/devguide/policy.html
-💻 Full runnable example: `articles/examples/gateway/` (policy integrates with Gateway)
+💻 Full runnable example: `articles/examples/gateway/` (policy integrates with Gateway) | [View complete example on GitHub](https://github.com/apresai/agentcore/tree/main/articles/examples/gateway/)
 🔧 GitHub samples: https://github.com/awslabs/amazon-bedrock-agentcore-samples/
 
 #AWS #AI #AgentCore #Security #Cedar #Architects

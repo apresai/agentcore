@@ -60,6 +60,8 @@ agentcore invoke '{"prompt": "What tools do you have?"}'
 
 The Guide's entry on Strands would probably read: "Mostly harmless. Extremely useful." And honestly, that is the highest compliment a framework can get.
 
+[View complete example on GitHub](https://github.com/apresai/agentcore/tree/main/articles/examples/overview/)
+
 Docs: https://docs.aws.amazon.com/bedrock-agentcore/latest/devguide/
 
 #AWS #AI #AgentCore #Strands #Developers

@@ -198,6 +198,8 @@ Start with Runtime for hosting. Add Memory when users complain the agent forgets
 
 AgentCore is framework-agnostic. Whether your PoC uses Strands, LangGraph, CrewAI, or a custom framework, the path is the same: wrap your entry point, deploy, and layer on services incrementally. By the end, your Guide entry upgrades from "Mostly Harmless" to something far more impressive.
 
+[View examples on GitHub](https://github.com/apresai/agentcore/tree/main/articles/examples/)
+
 Documentation: https://docs.aws.amazon.com/bedrock-agentcore/latest/devguide/
 GitHub samples: https://github.com/awslabs/amazon-bedrock-agentcore-samples/
 

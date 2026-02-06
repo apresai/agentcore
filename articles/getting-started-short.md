@@ -47,6 +47,6 @@ The agent runs in a dedicated microVM with isolated CPU, memory, and filesystem.
 Remember: a hoopy frood always knows where their towel is, and a hoopy developer always knows where their agent is deployed. In this case, it's AgentCore Runtime, and it just took you less time than ordering a Pan Galactic Gargle Blaster.
 
 Docs: https://docs.aws.amazon.com/bedrock-agentcore/latest/devguide/
-Code: `articles/examples/quickstart/`
+Code: `articles/examples/quickstart/` | [View complete example on GitHub](https://github.com/apresai/agentcore/tree/main/articles/examples/quickstart/)
 
 #AWS #AI #AgentCore #Agents

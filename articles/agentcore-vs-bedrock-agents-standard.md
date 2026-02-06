@@ -100,6 +100,6 @@ python main.py
 
 - Documentation: https://docs.aws.amazon.com/bedrock-agentcore/latest/devguide/
 - Bedrock Agents: https://docs.aws.amazon.com/bedrock/latest/userguide/agents.html
-- Full example: `articles/examples/comparison/`
+- Full example: `articles/examples/comparison/` | [View complete example on GitHub](https://github.com/apresai/agentcore/tree/main/articles/examples/comparison/)
 
 #AWS #AI #AgentCore #BedrockAgents

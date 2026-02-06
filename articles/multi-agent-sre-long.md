@@ -472,7 +472,7 @@ Start with the supervisor and one specialist (Logs Agent). Add specialists incre
 The *Hitchhiker's Guide* famously has the words "DON'T PANIC" printed in large, friendly letters on its cover. With a multi-agent SRE system handling the 3 AM correlation work, your on-call engineers might finally be able to take that advice.
 
 📚 **Documentation**: https://docs.aws.amazon.com/bedrock-agentcore/latest/devguide/
-💻 **Full runnable code**: `articles/examples/runtime/`
+💻 **Full runnable code**: `articles/examples/runtime/` | [View complete example on GitHub](https://github.com/apresai/agentcore/tree/main/articles/examples/runtime/)
 🔧 **GitHub samples**: https://github.com/awslabs/amazon-bedrock-agentcore-samples/
 
 #AWS #AI #AgentCore #SRE #MultiAgent #Tutorial

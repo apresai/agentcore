@@ -2125,6 +2125,8 @@ The progression:
 
 Each step adds value independently. You do not need the entire platform to realize benefits from any single component.
 
+[View examples on GitHub](https://github.com/apresai/agentcore/tree/main/articles/examples/)
+
 Slartibartfast, reflecting on his career building planets, once said he found the whole business of creating coastlines "rather satisfying." Building an enterprise agent platform has the same quality. The individual pieces -- a gateway here, a memory store there, a Cedar policy to keep things orderly -- are satisfying on their own. But when they come together into a coherent platform that fifteen teams can build on without stepping on each other, you have something that even a Magrathean would appreciate: infrastructure that makes impossible complexity feel merely improbable.
 
 ---

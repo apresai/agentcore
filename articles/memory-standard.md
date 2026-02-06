@@ -117,7 +117,7 @@ Teams typically use Memory for customer support agents that recall past issues, 
 Start with short-term memory for session context, then add long-term strategies as you identify what your agent should remember across sessions. Unlike Marvin, who was cursed to remember everything for 576 billion years and found it all thoroughly depressing, your agent will only remember what actually matters — and it won't complain about it once.
 
 📚 Documentation: https://docs.aws.amazon.com/bedrock-agentcore/latest/devguide/memory.html
-💻 Full runnable example: `articles/examples/memory/`
+💻 Full runnable example: `articles/examples/memory/` | [View complete example on GitHub](https://github.com/apresai/agentcore/tree/main/articles/examples/memory/)
 🔧 GitHub samples: https://github.com/awslabs/amazon-bedrock-agentcore-samples/
 
 #AWS #AI #AgentCore #Memory #Developers

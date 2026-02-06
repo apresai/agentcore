@@ -227,6 +227,8 @@ Deploy one agent to AgentCore, run it for a week, and compare the bill against y
 
 The answer to life, the universe, and everything may be 42 -- but the answer to "how much should I be paying for idle compute" is definitively zero. Unlike the Sirius Cybernetics Corporation, AgentCore actually delivers on the promise: share your agents, enjoy your savings, and for once the complaints division stays empty.
 
+[View complete example on GitHub](https://github.com/apresai/agentcore/tree/main/articles/examples/runtime/)
+
 📚 Documentation: https://docs.aws.amazon.com/bedrock-agentcore/latest/devguide/
 💰 Pricing details: https://aws.amazon.com/bedrock/agentcore/pricing/
 🔧 GitHub samples: https://github.com/awslabs/amazon-bedrock-agentcore-samples/

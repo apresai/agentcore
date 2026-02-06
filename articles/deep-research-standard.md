@@ -164,6 +164,8 @@ Start with a simple three-node graph (plan, browse, synthesize) targeting 5 URLs
 
 The Guide's editors would remind you: the best research is thorough, well-sourced, and completed before the planet you are standing on gets demolished to make way for a hyperspace bypass. Set your timeout accordingly.
 
+[View examples on GitHub](https://github.com/apresai/agentcore/tree/main/articles/examples/)
+
 📚 Documentation: https://docs.aws.amazon.com/bedrock-agentcore/latest/devguide/runtime.html
 🌐 Browser service: https://docs.aws.amazon.com/bedrock-agentcore/latest/devguide/browser.html
 🔧 GitHub samples: https://github.com/awslabs/amazon-bedrock-agentcore-samples/

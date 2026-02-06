@@ -350,4 +350,4 @@ The *Hitchhiker's Guide* succeeded because it told a confused and frightened gal
 
 **Samples**: https://github.com/awslabs/amazon-bedrock-agentcore-samples/
 
-**Code Example**: `articles/examples/overview/`
+**Code Example**: `articles/examples/overview/` | [View complete example on GitHub](https://github.com/apresai/agentcore/tree/main/articles/examples/overview/)

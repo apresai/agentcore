@@ -59,6 +59,6 @@ Expected output:
 Ready to go further? Add Memory for context, Gateway for tools, and Identity for auth—all with the same SDK. The answer to Life, the Universe, and Everything may be 42 — but the answer to production AI infrastructure is `agentcore launch`.
 
 📚 Docs: https://docs.aws.amazon.com/bedrock-agentcore/latest/devguide/
-💻 Code: `articles/examples/runtime/`
+💻 Code: `articles/examples/runtime/` | [View complete example on GitHub](https://github.com/apresai/agentcore/tree/main/articles/examples/runtime/)
 
 #AWS #AI #AgentCore #Runtime
