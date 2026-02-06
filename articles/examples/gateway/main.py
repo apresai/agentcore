@@ -193,13 +193,28 @@ def main():
         # Step 3: Clean up resources
         print("\n[Step 3] Cleaning up...")
 
-        # Delete Gateway
+        # Delete Gateway and wait for deletion to complete
         if gateway_id:
             try:
                 control_client.delete_gateway(gatewayIdentifier=gateway_id)
+                # Wait for deletion to actually complete (API is async)
+                for i in range(60):  # Up to 2 minutes
+                    try:
+                        status_response = control_client.get_gateway(gatewayIdentifier=gateway_id)
+                        status = status_response['status']
+                        if status in ('DELETED', 'FAILED'):
+                            break
+                        if i % 10 == 0:
+                            print(f"  Waiting for gateway deletion (status: {status})...")
+                        time.sleep(2)
+                    except control_client.exceptions.ResourceNotFoundException:
+                        break  # Gateway is gone
+                    except Exception:
+                        break
                 print("✓ Gateway deleted")
             except Exception as e:
-                print(f"  Gateway cleanup: {e}")
+                print(f"  ⚠ Gateway cleanup failed: {e}")
+                print(f"  Manual cleanup: aws bedrock-agentcore-control delete-gateway --gateway-identifier {gateway_id} --region {region}")
 
         # Delete IAM role
         try:

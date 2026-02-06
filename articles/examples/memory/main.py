@@ -192,13 +192,29 @@ def main():
         raise
 
     finally:
-        # Cleanup: Delete the memory resource
-        print(f"\nCleaning up: Deleting memory {memory_name}...")
-        try:
-            control_client.delete_memory(memoryId=memory_id)
-            print("✓ Memory deleted successfully")
-        except Exception as cleanup_error:
-            print(f"  Cleanup note: {cleanup_error}")
+        # Cleanup: Delete the memory resource and wait for deletion to complete
+        if memory_id:
+            print(f"\nCleaning up: Deleting memory {memory_name}...")
+            try:
+                control_client.delete_memory(memoryId=memory_id)
+                # Wait for deletion to actually complete (API is async)
+                for i in range(60):  # Up to 2 minutes
+                    try:
+                        status_response = control_client.get_memory(memoryId=memory_id)
+                        status = status_response['memory']['status']
+                        if status in ('DELETED', 'FAILED'):
+                            break
+                        if i % 10 == 0:
+                            print(f"  Waiting for deletion (status: {status})...")
+                        time.sleep(2)
+                    except control_client.exceptions.ResourceNotFoundException:
+                        break  # Memory is gone
+                    except Exception:
+                        break
+                print("✓ Memory deleted successfully")
+            except Exception as cleanup_error:
+                print(f"  ⚠ Cleanup failed: {cleanup_error}")
+                print(f"  Manual cleanup: aws bedrock-agentcore-control delete-memory --memory-id {memory_id} --region {region}")
 
 
 if __name__ == "__main__":
