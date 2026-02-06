@@ -2,9 +2,9 @@ Your agents need tools. Here's how to give them thousands — without writing in
 
 ![AgentCore Gateway](images/gateway-article.webp)
 
-Every AI agent eventually needs to do something real — query a database, file a ticket, send a message. That means integrating APIs. For one or two tools, you write custom code. For ten, you build a framework. For hundreds across your enterprise? You need a gateway.
+Every AI agent eventually needs to do something real — query a database, file a ticket, send a message. That means integrating APIs. For one or two tools, you write custom code. For ten, you build a framework. For hundreds across your enterprise? You need a Babel Fish. In *The Hitchhiker's Guide to the Galaxy*, the Babel Fish is a small, leech-like creature that, when placed in your ear, instantly translates any language in the universe. AgentCore Gateway is the Babel Fish for your agent's tool problem — except instead of translating Vogon poetry (mercifully), it translates APIs.
 
-AgentCore Gateway converts your existing APIs, Lambda functions, and MCP servers into a unified tool layer that any agent can discover and invoke through the **Model Context Protocol (MCP)**. OpenAPI spec in, MCP tools out. Lambda function in, MCP tools out. It handles authentication, protocol translation, and semantic tool discovery — so you focus on agent logic, not plumbing.
+AgentCore Gateway converts your existing APIs, Lambda functions, and MCP servers into a unified tool layer that any agent can discover and invoke through the **Model Context Protocol (MCP)**. OpenAPI spec in, MCP tools out. Lambda function in, MCP tools out. Like the Babel Fish performing its miraculous universal translation, Gateway handles authentication, protocol translation, and semantic tool discovery — so you focus on agent logic, not plumbing.
 
 ## Prerequisites
 
@@ -161,7 +161,7 @@ Expected output:
 - **Zero integration code**: Drop in an OpenAPI spec or Lambda ARN — Gateway generates MCP tools automatically
 - **Semantic discovery**: Agents find the right tools from thousands using natural language search, reducing prompt size and latency
 - **Built-in auth**: Inbound (IAM, JWT, OAuth) and outbound (OAuth, API keys) authentication handled at the gateway layer
-- **Scale to thousands**: Up to 1,000 tools per gateway with 100 targets, semantic search keeps agents efficient
+- **Scale to thousands**: Up to 1,000 tools per gateway with 100 targets, semantic search keeps agents efficient. The Babel Fish merely handled every spoken language in the universe — Gateway handles REST, GraphQL, Lambda, and MCP, which is arguably a more hostile ecosystem.
 
 ## Common Patterns
 
@@ -169,7 +169,7 @@ Teams typically start with a single gateway per environment, adding Lambda targe
 
 ## Next Steps
 
-Start with a gateway and one Lambda target to validate the flow. Add semantic search when your tool count exceeds what fits comfortably in a single prompt. Use 1-click integrations for SaaS tools instead of building custom connectors.
+Start with a gateway and one Lambda target to validate the flow. Add semantic search when your tool count exceeds what fits comfortably in a single prompt. Use 1-click integrations for SaaS tools instead of building custom connectors. Douglas Adams once wrote that the Babel Fish, by effectively removing all barriers to communication, caused more and bloodier wars than anything else in the history of creation. Fortunately, Gateway just causes fewer integration meetings — which is the opposite of war, and nearly as satisfying.
 
 📚 Documentation: https://docs.aws.amazon.com/bedrock-agentcore/latest/devguide/gateway.html
 💻 Full runnable example: `articles/examples/gateway/`

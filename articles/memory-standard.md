@@ -1,8 +1,8 @@
-Your AI agent forgets everything after each session. Here's the fix:
+Your AI agent forgets everything after each session. Marvin the Paranoid Android would be appalled — here he is with a brain the size of a planet, and your agent can't even remember a user's name between conversations. Here's the fix:
 
 ![AgentCore Memory](images/memory-article.webp)
 
-Every conversation starts from zero. User mentions they prefer window seats? Gone. They told you their budget last week? Forgotten. Without memory, your agents can't build relationships or learn from interactions.
+Every conversation starts from zero. User mentions they prefer window seats? Gone. They told you their budget last week? Forgotten. Without memory, your agents can't build relationships or learn from interactions. "I've been talking to your agent for the last hour," your user might say. "Don't talk to me about it," your agent would reply, channeling Marvin. "I've got this terrible pain in all the diodes down my left side, and I can't remember a thing you've told me."
 
 AgentCore Memory solves this with two memory types working together: **short-term memory** maintains context within a session (so "What about tomorrow?" knows you're still talking about Seattle weather), while **long-term memory** automatically extracts and stores preferences, facts, and summaries across sessions.
 
@@ -106,13 +106,15 @@ Expected output:
 - **Automatic extraction**: Long-term memories are extracted asynchronously without extra code
 - **Semantic search**: Find relevant memories using natural language queries
 
+With AgentCore Memory, your agent finally gets a brain the size of a planet — or at least a managed vector store with semantic retrieval, which is arguably more useful.
+
 ## Common Patterns
 
 Teams typically use Memory for customer support agents that recall past issues, booking assistants that remember preferences, and multi-agent systems where specialized agents share context through a common memory store.
 
 ## Next Steps
 
-Start with short-term memory for session context, then add long-term strategies as you identify what your agent should remember across sessions.
+Start with short-term memory for session context, then add long-term strategies as you identify what your agent should remember across sessions. Unlike Marvin, who was cursed to remember everything for 576 billion years and found it all thoroughly depressing, your agent will only remember what actually matters — and it won't complain about it once.
 
 📚 Documentation: https://docs.aws.amazon.com/bedrock-agentcore/latest/devguide/memory.html
 💻 Full runnable example: `articles/examples/memory/`

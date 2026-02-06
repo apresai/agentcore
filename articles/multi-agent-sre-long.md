@@ -2,13 +2,15 @@
 
 ![AgentCore Runtime](images/runtime-article.webp)
 
+> The *Heart of Gold* had a crew of specialists: Zaphod Beeblebrox made the executive decisions (usually terrible ones), Ford Prefect researched everything in the field, Trillian ran the actual analysis, and Arthur Dent just wanted things to stop breaking. Your incident response team works the same way -- except at 3 AM, nobody is as awake as a two-headed Galactic President.
+
 ## The Problem
 
 It's 3 AM. PagerDuty fires. Your on-call engineer opens a dozen tabs: Kubernetes dashboard, CloudWatch logs, Grafana metrics, runbook wiki, and the incident Slack channel. They spend 20 minutes correlating signals before they even understand the problem. By then, customer impact has been accumulating for half an hour.
 
 Site reliability engineering during incidents requires parallel investigation across multiple systems — logs, metrics, infrastructure state, and runbooks — while maintaining a coherent picture of what's happening. A single agent can't effectively manage this breadth. It needs to be good at everything simultaneously.
 
-This tutorial builds a **supervisor + specialist** multi-agent system on AgentCore Runtime. A supervisor agent decomposes incidents into investigation tasks and delegates them to specialized sub-agents: a **Logs Agent** that searches and analyzes log patterns, a **Metrics Agent** that queries CloudWatch for anomalies, a **Kubernetes Agent** that checks cluster and pod state, and a **Runbook Agent** that retrieves relevant procedures. Runtime's 8-hour session support means the system can manage extended incidents without timing out.
+This tutorial builds a **supervisor + specialist** multi-agent system on AgentCore Runtime. Think of it as assembling your own *Heart of Gold* crew for incident response. The **Supervisor** is Zaphod -- making bold delegation decisions and keeping the big picture in view (with slightly fewer heads). The **Logs Agent** is Ford Prefect, diving into the raw data and field-researching what actually happened. The **Metrics Agent** is Trillian, the analyst who turns numbers into insight. The **Kubernetes Agent** checks cluster and pod state like Arthur checking whether the ship is about to crash. And the **Runbook Agent** retrieves relevant procedures -- the closest thing SRE has to a copy of *The Hitchhiker's Guide to the Galaxy* itself. Runtime's 8-hour session support means the system can manage extended incidents without timing out.
 
 ## Prerequisites
 
@@ -289,6 +291,8 @@ runbook_agent = Agent(
 
 ### Step 3: Build the Supervisor Agent
 
+Zaphod once said that the secret to being a great President of the Galaxy was never letting anyone know you had no idea what was going on. A good supervisor agent takes the opposite approach: it decomposes the problem, delegates to specialists, and synthesizes the results into a coherent picture. Less galactic bravado, more disciplined coordination.
+
 ```python
 @tool
 def investigate_logs(question: str) -> str:
@@ -441,7 +445,7 @@ Database connection pool exhaustion causing cascading failures...
 Runtime supports sessions up to 8 hours. Complex incidents that span shift changes can be managed by a single persistent agent session.
 
 ### Specialist Decomposition
-Each sub-agent has focused tools and prompts for its domain. The supervisor coordinates without needing to be expert in everything.
+Each sub-agent has focused tools and prompts for its domain. The supervisor coordinates without needing to be expert in everything. Much like the *Heart of Gold* crew, each member brings a unique capability -- and the ship works best when they all do their jobs rather than when Zaphod tries to do everything himself.
 
 ### Real AWS Integration
 Every tool calls real AWS APIs — CloudWatch Logs, CloudWatch Metrics, Container Insights, S3. No simulated data.
@@ -464,6 +468,8 @@ Solution: Bedrock has per-model rate limits. Add retry logic with exponential ba
 ## Next Steps
 
 Start with the supervisor and one specialist (Logs Agent). Add specialists incrementally as you validate the pattern. Connect to your incident management system (PagerDuty, OpsGenie) via Gateway for automated incident creation and updates.
+
+The *Hitchhiker's Guide* famously has the words "DON'T PANIC" printed in large, friendly letters on its cover. With a multi-agent SRE system handling the 3 AM correlation work, your on-call engineers might finally be able to take that advice.
 
 📚 **Documentation**: https://docs.aws.amazon.com/bedrock-agentcore/latest/devguide/
 💻 **Full runnable code**: `articles/examples/runtime/`

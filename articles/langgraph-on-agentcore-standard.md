@@ -1,10 +1,12 @@
-Your LangGraph agents deserve production infrastructure. Here's how to deploy them — without managing a single server:
+Your LangGraph agents deserve production infrastructure. Here's how to deploy them -- without managing a single server:
 
 ![AgentCore Runtime](images/runtime-article.webp)
 
-LangGraph gives you graph-based orchestration: define nodes for reasoning, tool use, and decision-making, connect them with conditional edges, and let the framework handle execution flow. It is one of the most popular ways to build structured AI agents. But running LangGraph in production means Kubernetes clusters, scaling policies, session management, and security isolation — infrastructure that has nothing to do with your agent logic.
+The *Heart of Gold* -- the most improbable ship in the galaxy -- navigated the cosmos by calculating routes through an Infinite Improbability Drive. LangGraph navigates agent logic much the same way: graph-based orchestration where you define nodes for reasoning, tool use, and decision-making, connect them with conditional edges, and let the framework calculate the execution path. It is one of the most popular ways to build structured AI agents.
 
-**AgentCore Runtime** eliminates that entire layer. Deploy your LangGraph agent with the CLI, get microVM isolation per session, and run graph executions for up to 8 hours. Add AgentCore Memory for state persistence across sessions. Your graph logic stays exactly the same.
+But even the *Heart of Gold* needed a ship around the drive. Running LangGraph in production means Kubernetes clusters, scaling policies, session management, and security isolation -- infrastructure that has nothing to do with your agent logic. That is like building an entire spacecraft just to house your Improbability Drive.
+
+**AgentCore Runtime** is the ship. Deploy your LangGraph agent with the CLI, get microVM isolation per session, and run graph executions for up to 8 hours. Add AgentCore Memory for state persistence across sessions. Your graph logic stays exactly the same -- the drive does not care what hull it sits in.
 
 ## Prerequisites
 
@@ -214,6 +216,8 @@ Agent ready. Invoke with: agentcore invoke --dev '{"prompt": "your question"}'
 
 ## Key Benefits
 
+The Infinite Improbability Drive was remarkable not because of the ship around it, but because it freed the crew from caring about conventional navigation. AgentCore does the same for your infrastructure.
+
 - **Zero infrastructure**: No Kubernetes, no scaling config, no container management. Deploy with `agentcore deploy`
 - **8-hour execution**: Long-running research graphs, multi-step analysis, and iterative refinement without timeout constraints
 - **MicroVM isolation**: Each session runs in a dedicated microVM with isolated CPU, memory, and filesystem
@@ -222,11 +226,13 @@ Agent ready. Invoke with: agentcore invoke --dev '{"prompt": "your question"}'
 
 ## Common Patterns
 
-Teams use LangGraph on AgentCore for research agents that iterate through gather-analyze-synthesize cycles over hours, multi-step workflows with conditional branching based on intermediate results, and supervisor architectures where a coordinator graph dispatches to specialized sub-agents. The 8-hour execution window makes LangGraph particularly effective for deep analysis tasks that would timeout on Lambda or short-lived containers.
+Teams use LangGraph on AgentCore for research agents that iterate through gather-analyze-synthesize cycles over hours, multi-step workflows with conditional branching based on intermediate results, and supervisor architectures where a coordinator graph dispatches to specialized sub-agents. It is graph-based navigation through an improbable number of possible execution paths -- and the infrastructure handles it all. The 8-hour execution window makes LangGraph particularly effective for deep analysis tasks that would timeout on Lambda or short-lived containers.
 
 ## Next Steps
 
 Start with a simple two-node graph deployed via the CLI. Add conditional edges as your workflow grows. Integrate Memory when you need cross-session context. Use `agentcore dev` for rapid local iteration before deploying.
+
+The probability of getting good production infrastructure by managing it yourself is, as a certain shipboard computer might say, infinitely improbable. Fortunately, AgentCore has already done the math.
 
 Documentation: https://docs.aws.amazon.com/bedrock-agentcore/latest/devguide/
 LangGraph docs: https://langchain-ai.github.io/langgraph/

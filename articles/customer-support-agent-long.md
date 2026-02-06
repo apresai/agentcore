@@ -2,13 +2,15 @@
 
 ![AgentCore Customer Support](images/memory-article.webp)
 
+> "I think you ought to know I'm feeling very depressed." -- Marvin the Paranoid Android, speaking for every support agent who has to ask a customer to repeat their account number for the third time.
+
 ## The Problem
 
-Your support team handles 500 tickets a day. Every interaction starts cold — the agent doesn't know that this customer called three times last week about the same billing issue, prefers email communication, and has a premium account. The customer repeats themselves. The agent asks redundant questions. Resolution time balloons.
+Your support team handles 500 tickets a day. Every interaction starts cold -- the agent doesn't know that this customer called three times last week about the same billing issue, prefers email communication, and has a premium account. The customer repeats themselves. The agent asks redundant questions. Resolution time balloons. Marvin would call this a classic case of using a brain the size of a planet to perform tasks that would bore a pocket calculator.
 
 Building a production support agent requires solving four problems simultaneously: context persistence across sessions, secure access to CRM and ticketing tools, real-time quality monitoring, and deterministic guardrails to prevent the agent from doing things like issuing unauthorized refunds. Most teams attempt this with a single framework and end up with a brittle monolith.
 
-This tutorial builds a customer support agent using four AgentCore services working together: **Memory** for customer context, **Gateway** for CRM tool integration, **Observability** for monitoring, and **Runtime** for deployment.
+This tutorial builds a customer support agent using four AgentCore services working together: **Memory** for customer context, **Gateway** for CRM tool integration, **Observability** for monitoring, and **Runtime** for deployment. Unlike Marvin, who was cursed with perfect memory of every tedious conversation he ever had and no ability to forget, our agent gets *useful* memory -- the kind that actually makes the next interaction better instead of more existentially painful.
 
 ## Prerequisites
 
@@ -59,7 +61,7 @@ data = boto3.client('bedrock-agentcore', region_name=REGION)
 
 ### Step 3: Create Memory for Customer Context
 
-The support agent needs two types of memory: short-term for the current conversation and long-term for customer preferences and history.
+The support agent needs two types of memory: short-term for the current conversation and long-term for customer preferences and history. Think of it as giving the agent what Marvin had -- a brain the size of a planet -- but wiring it so the agent actually *enjoys* using it to help people, rather than sighing about being asked to open doors.
 
 ```python
 from datetime import datetime, timezone
@@ -346,7 +348,7 @@ Preferences  CRM/Tickets  CloudWatch
 ## Key Benefits
 
 ### Context That Persists
-Memory stores customer preferences and interaction summaries automatically. When a customer calls back, the agent knows their history without them repeating it.
+Memory stores customer preferences and interaction summaries automatically. When a customer calls back, the agent knows their history without them repeating it. "The first ten million years were the worst," Marvin once said, "and the second ten million years, they were the worst too." Your customers should not have to feel the same way about calling support twice.
 
 ### Secure Tool Access
 Gateway provides MCP-compatible access to CRM tools with authentication handled at the infrastructure layer. The agent calls tools through a unified interface.
@@ -368,6 +370,8 @@ Solution: Check if semantic search is adding latency. Reduce `topK` in memory re
 ## Next Steps
 
 Start with Memory and a single Gateway tool to validate the pattern. Add CRM integrations incrementally. Use Observability to identify which customer queries take longest and optimize those paths first.
+
+As Marvin might say: "Here I am, brain the size of a planet, and they ask me to handle support tickets. But at least now I remember who I'm talking to." That is the difference between a depressed robot and a capable agent -- context. Give your agent Memory, and it will never ask a customer to repeat themselves again. Even Marvin would approve. Grudgingly.
 
 📚 **Documentation**: https://docs.aws.amazon.com/bedrock-agentcore/latest/devguide/
 💻 **Full runnable code**: `articles/examples/memory/`

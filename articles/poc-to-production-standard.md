@@ -2,7 +2,9 @@ Your agent works on a laptop. It will fail in production. Here's the migration p
 
 ![AgentCore Runtime](images/runtime-article.webp)
 
-The demo went great. Now ship it. Except your PoC has no memory, no auth, no observability, and it runs on a single container. The gap between "works on my machine" and "runs in production" is where most agent projects die.
+Arthur Dent never planned to leave Earth. One Thursday morning he was lying in front of a bulldozer, and by lunchtime he was hurtling through space in his dressing gown. The journey from PoC to production is not unlike Arthur's -- reluctant, disorienting, and absolutely inevitable.
+
+The demo went great. Now ship it. Except your PoC has no memory, no auth, no observability, and it runs on a single container. Your agent's entry in the Hitchhiker's Guide currently reads "Mostly Harmless." The gap between that and something genuinely useful is where most agent projects die.
 
 AgentCore closes that gap incrementally. You migrate in stages: Runtime first, then Memory, Gateway, and Identity as demands grow.
 
@@ -17,7 +19,7 @@ AgentCore closes that gap incrementally. You migrate in stages: Runtime first, t
 | **Observability** | `print()` statements | Structured traces, metrics, dashboards |
 | **Isolation** | Shared process for all users | MicroVM per session |
 
-Three or more gaps? Not production-ready.
+Three or more gaps? Not production-ready. Your agent is still standing in front of the bulldozer.
 
 ## Before: The Typical PoC Agent
 
@@ -44,7 +46,7 @@ This works for demos. It fails under real traffic, multiple users, or a security
 
 ## Migration Step 1: Deploy to Runtime
 
-Wrap your existing logic in the `BedrockAgentCoreApp` entrypoint. No code rewrite required.
+This is the moment your agent hitches a ride off the planet. Wrap your existing logic in the `BedrockAgentCoreApp` entrypoint. No code rewrite required -- just grab your towel and go.
 
 ```bash
 pip install bedrock-agentcore bedrock-agentcore-starter-toolkit
@@ -190,9 +192,11 @@ Every request is now authenticated. Every tool call uses the correct user's perm
 
 ## Key Takeaway
 
-You do not need to migrate everything at once. Start with Runtime for hosting. Add Memory when users complain the agent forgets. Add Gateway when security flags hardcoded credentials. Add Identity when you go user-facing.
+Arthur Dent eventually learned to fly by throwing himself at the ground and missing. Migrating to production is similar -- you do not need to get everything right at once. You just need to start falling in the right direction.
 
-AgentCore is framework-agnostic. Whether your PoC uses Strands, LangGraph, CrewAI, or a custom framework, the path is the same: wrap your entry point, deploy, and layer on services incrementally.
+Start with Runtime for hosting. Add Memory when users complain the agent forgets. Add Gateway when security flags hardcoded credentials. Add Identity when you go user-facing.
+
+AgentCore is framework-agnostic. Whether your PoC uses Strands, LangGraph, CrewAI, or a custom framework, the path is the same: wrap your entry point, deploy, and layer on services incrementally. By the end, your Guide entry upgrades from "Mostly Harmless" to something far more impressive.
 
 Documentation: https://docs.aws.amazon.com/bedrock-agentcore/latest/devguide/
 GitHub samples: https://github.com/awslabs/amazon-bedrock-agentcore-samples/

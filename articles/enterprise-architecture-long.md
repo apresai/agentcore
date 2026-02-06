@@ -2,6 +2,8 @@
 
 ![AgentCore Gateway](images/gateway-article.webp)
 
+> On the ancient planet of Magrathea, they built custom planets for the richest inhabitants of the galaxy. The manufacturing process was extraordinarily complex -- oceans, atmospheres, continental plates, fjords -- but the genius was in the platform. Magrathea did not build each planet from scratch. They had shared infrastructure, reusable components, and a factory floor that could produce any world to spec. Enterprise agent platforms work the same way. You are not building planets, but you are building something almost as complex: a shared foundation that lets every team in your organization construct their own AI agents without reinventing gravity.
+
 Your organization has 15 teams building AI agents. Each team picked its own framework, rolled its own authentication, and hard-coded API integrations. Three months later you have 15 agents, 15 different security postures, 15 sets of duplicated credentials, and zero cross-team visibility. One agent has production access to Salesforce with an API key stored in plaintext. Another bypasses your IdP entirely. Nobody knows what tools any agent can actually invoke.
 
 This is the enterprise agent sprawl problem, and it mirrors the microservices sprawl that platform engineering was created to solve a decade ago. The difference is that AI agents are non-deterministic. A container that misbehaves does the same wrong thing every time. An agent that misbehaves does something different each time, making the blast radius of poor governance unpredictable and potentially catastrophic.
@@ -11,6 +13,8 @@ The solution is the same pattern that worked for microservices: a centralized pl
 This article presents a reference architecture for an enterprise agent platform built on AWS Bedrock AgentCore. It covers four pillars: a centralized tool gateway for enterprise APIs, shared memory stores across agent teams, Cedar policy governance for multi-tenant isolation, and Identity service integration with enterprise IdPs like Okta and Microsoft Entra ID. The architecture is framework-agnostic, model-agnostic, and designed for organizations running agents at scale across multiple business units.
 
 ## The Solution
+
+Slartibartfast won an award for designing the coastlines of Norway. He was, by all accounts, a meticulous architect who understood that the beauty of a planet was in its details, but the viability of the planet was in its underlying structure. Enterprise platform architecture requires the same sensibility -- attention to the fine-grained details of policy and identity, built on a structural foundation that will not collapse when the fifteenth team plugs in their agent.
 
 AgentCore provides nine modular services that compose into a platform layer for AI agents. For enterprise architecture, four services form the foundation:
 
@@ -123,7 +127,7 @@ print(f"Region: {REGION}")
 
 ### Step 2: Create the Centralized Enterprise Gateway
 
-The Gateway is the heart of the platform. Instead of each team integrating APIs independently, every enterprise tool is registered once in a central Gateway. Agents discover and invoke tools through MCP, and authentication plus policy enforcement happens at the boundary.
+The Gateway is the heart of the platform -- or, to borrow from Douglas Adams, the Infinite Improbability Drive of the whole operation. Just as the *Heart of Gold*'s drive could do wildly improbable things by centralizing impossibility calculations, the Gateway centralizes tool access so that wildly diverse agent teams can all find and use the same enterprise APIs without each team having to independently solve authentication, discovery, and routing. Instead of each team integrating APIs independently, every enterprise tool is registered once in a central Gateway. Agents discover and invoke tools through MCP, and authentication plus policy enforcement happens at the boundary.
 
 #### Create the IAM Role
 
@@ -669,7 +673,7 @@ registry.register("acme-corp", GATEWAY_ID, GATEWAY_ARN)
 
 ### Step 3: Create Shared Memory Stores
 
-Enterprise agents rarely operate in isolation. A support agent escalates to a specialist agent. A sales agent hands off to a finance agent. A supervisor coordinates multiple worker agents. All of these patterns require shared context.
+Enterprise agents rarely operate in isolation. A support agent escalates to a specialist agent. A sales agent hands off to a finance agent. A supervisor coordinates multiple worker agents. All of these patterns require shared context. On Magrathea, the planet builders shared a common database of geological templates, atmospheric recipes, and client preferences so that any engineer could pick up where another left off. Your agents need the same thing -- shared memory stores that prevent every handoff from turning into a game of galactic telephone.
 
 AgentCore Memory provides two levels of sharing: session-level short-term memory for within-conversation context, and long-term memory with configurable strategies for cross-session knowledge. By creating shared memory stores at the platform level, you enable these patterns across teams.
 
@@ -975,7 +979,7 @@ print("Customer context:", customer_context)
 
 ### Step 4: Cedar Policy Governance for Multi-Tenant Isolation
 
-Cedar policies provide the deterministic enforcement layer. Every tool call flows through the Gateway's policy engine before execution. This is where you enforce tenant isolation, role-based access, and hard limits that no amount of prompt engineering can override.
+Cedar policies provide the deterministic enforcement layer. Every tool call flows through the Gateway's policy engine before execution. This is where you enforce tenant isolation, role-based access, and hard limits that no amount of prompt engineering can override. If the Gateway is the Infinite Improbability Drive, then Cedar is the Vogon bureaucracy -- and that is a compliment. The Vogons were terrible poets, but they were extraordinarily good at enforcement. Nothing got past a Vogon checkpoint without the proper paperwork. Your Cedar policies work the same way, minus the poetry readings.
 
 #### Policy Architecture
 
@@ -1750,7 +1754,7 @@ agentcore invoke '{
 
 ### Platform Orchestrator Pattern
 
-For large enterprises, a platform orchestrator routes requests to the appropriate specialized agent based on the request type. Each specialized agent runs on the same platform layer.
+For large enterprises, a platform orchestrator routes requests to the appropriate specialized agent based on the request type. Each specialized agent runs on the same platform layer. This is the Magrathean factory floor in action -- a single intake system that routes each order to the right specialist, whether the client wants a new ocean or just a minor fjord adjustment.
 
 ```python
 class PlatformOrchestrator:
@@ -2120,6 +2124,8 @@ The progression:
 5. **Month 2+**: Onboard additional agent teams, expand tool catalog, add Observability dashboards
 
 Each step adds value independently. You do not need the entire platform to realize benefits from any single component.
+
+Slartibartfast, reflecting on his career building planets, once said he found the whole business of creating coastlines "rather satisfying." Building an enterprise agent platform has the same quality. The individual pieces -- a gateway here, a memory store there, a Cedar policy to keep things orderly -- are satisfying on their own. But when they come together into a coherent platform that fifteen teams can build on without stepping on each other, you have something that even a Magrathean would appreciate: infrastructure that makes impossible complexity feel merely improbable.
 
 ---
 

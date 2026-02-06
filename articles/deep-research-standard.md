@@ -2,7 +2,9 @@ Your research agent needs hours, not seconds. Here's how to give it an 8-hour ru
 
 ![AgentCore Runtime](images/runtime-article.webp)
 
-Deep research -- competitive analysis, market surveys, literature reviews -- means browsing dozens of pages and synthesizing findings over minutes or hours. Standard request-response patterns timeout long before the work is done.
+The Hitchhiker's Guide to the Galaxy is the most remarkable book ever to come out of the great publishing corporations of Ursa Minor -- and it was compiled by field researchers who spent years roaming the galaxy, visiting planets, drinking inadvisable cocktails, and occasionally writing up their findings. Your deep research agent has a similar job description, minus the cocktails.
+
+Deep research -- competitive analysis, market surveys, literature reviews -- means browsing dozens of pages and synthesizing findings over minutes or hours. Much like a Guide researcher stranded on a particularly tedious planet, your agent needs time and patience. Standard request-response patterns timeout long before the work is done.
 
 AgentCore Runtime lets you deploy a LangGraph research agent that runs for up to **8 hours** in an isolated microVM, uses **AgentCore Browser** for real web interaction, and streams results back asynchronously. Deploy once, invoke with a topic, get a report -- no infrastructure to manage.
 
@@ -145,7 +147,9 @@ for line in response["response"].iter_lines(chunk_size=10):
 
 ## Key Benefits
 
-- **8-hour execution**: Deep research runs as long as it needs -- no timeout gymnastics or chained Lambda calls
+The probability of a research agent successfully browsing ten pages, synthesizing the results, and producing a coherent report without crashing has been calculated by the Infinite Improbability Drive at roughly one to one -- which, against all expectations, means it actually works.
+
+- **8-hour execution**: Deep research runs as long as it needs -- no timeout gymnastics or chained Lambda calls. Even Ford Prefect's fifteen-year field assignment on Earth would have gone faster with this kind of runway.
 - **Real browser access**: AgentCore Browser navigates JavaScript-heavy pages, handles logins, and renders dynamic content that HTTP requests miss
 - **I/O wait is free**: While the agent waits for pages to load or the LLM to respond, you are not billed for CPU -- critical for long-running research
 - **Framework flexibility**: LangGraph manages the research graph; swap in CrewAI or Strands without changing the deployment
@@ -157,6 +161,8 @@ Research agents follow a plan-browse-synthesize loop. For deeper investigations,
 ## Next Steps
 
 Start with a simple three-node graph (plan, browse, synthesize) targeting 5 URLs. Once validated, add iterative refinement loops and parallel browsing for faster coverage. Enable session recording on the Browser to audit what your agent actually saw during research.
+
+The Guide's editors would remind you: the best research is thorough, well-sourced, and completed before the planet you are standing on gets demolished to make way for a hyperspace bypass. Set your timeout accordingly.
 
 📚 Documentation: https://docs.aws.amazon.com/bedrock-agentcore/latest/devguide/runtime.html
 🌐 Browser service: https://docs.aws.amazon.com/bedrock-agentcore/latest/devguide/browser.html

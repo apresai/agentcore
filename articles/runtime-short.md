@@ -1,8 +1,8 @@
-Running AI agents in production is a nightmare. You need container orchestration, auto-scaling, security isolation, and 24/7 monitoring—just to get started.
+Running AI agents in production is a nightmare. You need container orchestration, auto-scaling, security isolation, and 24/7 monitoring—just to get started. It's enough to make Deep Thought, the great supercomputer from *The Hitchhiker's Guide to the Galaxy*, reconsider whether "42" was really worth all that effort.
 
 ![AgentCore Runtime](images/runtime-article.webp)
 
-Most teams spend weeks on infrastructure before their agent handles a single request. When something breaks at 3 AM? That's on you.
+Most teams spend weeks on infrastructure before their agent handles a single request — Deep Thought spent 7.5 million years computing the Answer to the Ultimate Question, but at least it didn't have to manage its own Kubernetes cluster. When something breaks at 3 AM? That's on you.
 
 **AgentCore Runtime** eliminates this entirely. It's a serverless, purpose-built hosting environment where each user session runs in a dedicated microVM with isolated CPU, memory, and filesystem. You deploy with three commands. AWS handles the rest.
 
@@ -54,9 +54,9 @@ Expected output:
 ✓ Response: {"result": "Hello! I'm your AI assistant running on AgentCore..."}
 ```
 
-**Key benefit**: I/O wait is free—you're not charged while your agent waits for LLM responses. Plus, agents can run up to 8 hours for complex, long-running tasks.
+**Key benefit**: I/O wait is free—you're not charged while your agent waits for LLM responses. Plus, agents can run up to 8 hours for complex, long-running tasks. Deep Thought would have killed for that billing model — imagine 7.5 million years of I/O wait charges.
 
-Ready to go further? Add Memory for context, Gateway for tools, and Identity for auth—all with the same SDK.
+Ready to go further? Add Memory for context, Gateway for tools, and Identity for auth—all with the same SDK. The answer to Life, the Universe, and Everything may be 42 — but the answer to production AI infrastructure is `agentcore launch`.
 
 📚 Docs: https://docs.aws.amazon.com/bedrock-agentcore/latest/devguide/
 💻 Code: `articles/examples/runtime/`

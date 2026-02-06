@@ -2,9 +2,9 @@ Your OpenAI Agents SDK code works locally. Now deploy it to production with secu
 
 ![AgentCore Runtime](images/runtime-article.webp)
 
-The OpenAI Agents SDK provides a clean API for building agents, but production deployment means managing infrastructure yourself. And you're locked to OpenAI models.
+Switching spacecraft mid-flight sounds impossible, but any seasoned galactic hitchhiker will tell you it is mostly a matter of knowing which airlock to use. The OpenAI Agents SDK provides a clean API for building agents, but production deployment means managing infrastructure yourself -- and you are locked to one ship's engines. Time to transfer to a better vessel.
 
-**AgentCore Runtime** deploys your OpenAI SDK agents to serverless infrastructure with microVM isolation and lets you swap in any model, including Bedrock models like Claude and Nova.
+**AgentCore Runtime** deploys your OpenAI SDK agents to serverless infrastructure with microVM isolation and lets you swap in any model, including Bedrock models like Claude and Nova. Same crew, different ship, vastly better hyperspace drive.
 
 ## Prerequisites
 
@@ -52,10 +52,10 @@ agentcore launch
 agentcore invoke '{"prompt": "What can you do?"}'
 ```
 
-**Key benefit**: Write once with OpenAI Agents SDK, deploy anywhere. Switch between GPT-4o, Claude, Nova, or Llama by changing one string — no other code changes required.
+**Key benefit**: Write once with OpenAI Agents SDK, deploy anywhere. Switch between GPT-4o, Claude, Nova, or Llama by changing one string -- no other code changes required. As any interstellar traveler knows, the best migrations are the ones where you do not have to repack your luggage.
 
-Next steps: add Gateway for enterprise API tools and Memory for conversation persistence.
+Next steps: add Gateway for enterprise API tools and Memory for conversation persistence. DON'T PANIC -- your agent code survives the jump intact.
 
-📚 Docs: https://docs.aws.amazon.com/bedrock-agentcore/latest/devguide/
+Docs: https://docs.aws.amazon.com/bedrock-agentcore/latest/devguide/
 
 #AWS #AI #AgentCore #OpenAI #Developers
