@@ -34,6 +34,7 @@ Expected output:
 """
 
 import os
+import sys
 import json
 
 # Optional: load environment variables from .env file
@@ -105,28 +106,36 @@ def build_graph():
     return graph.compile()
 
 
-def create_agentcore_app(agent):
-    """Wrap the LangGraph agent in BedrockAgentCoreApp for deployment."""
-    from bedrock_agentcore.runtime import BedrockAgentCoreApp
+# =============================================================================
+# AgentCore Runtime — deployable entrypoint
+# =============================================================================
 
-    app = BedrockAgentCoreApp()
+from bedrock_agentcore.runtime import BedrockAgentCoreApp
 
-    @app.entrypoint()
-    async def main(request):
-        user_id = request.get("user_id", "default")
-        session_id = request.get("session_id", "default")
-        prompt = request.get("prompt", "")
+# Lazy graph initialization — LangGraph imports are too heavy for 30s init limit
+_compiled_graph = None
 
-        result = agent.invoke({
-            "messages": [{"role": "user", "content": prompt}],
-            "research_notes": "",
-            "iteration": 0
-        })
+def get_graph():
+    """Build graph on first request (lazy init to stay within 30s startup)."""
+    global _compiled_graph
+    if _compiled_graph is None:
+        _compiled_graph = build_graph()
+    return _compiled_graph
 
-        response_text = result["messages"][-1].content
-        return {"response": response_text}
+app = BedrockAgentCoreApp()
 
-    return app
+@app.entrypoint
+def handle_request(payload, context):
+    """Entry point that AgentCore Runtime calls when your agent is invoked."""
+    graph = get_graph()
+    prompt = payload.get("prompt", "")
+    result = graph.invoke({
+        "messages": [{"role": "user", "content": prompt}],
+        "research_notes": "",
+        "iteration": 0
+    })
+    response_text = result["messages"][-1].content
+    return {"response": response_text}
 
 
 def main():
@@ -199,4 +208,8 @@ def main():
 
 
 if __name__ == "__main__":
-    main()
+    if "--demo" in sys.argv:
+        main()
+    else:
+        # Default: start the AgentCore server (for deployment + local dev)
+        app.run()
