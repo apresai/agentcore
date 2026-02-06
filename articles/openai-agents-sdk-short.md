@@ -23,7 +23,7 @@ from bedrock_agentcore.runtime import BedrockAgentCoreApp
 agent = Agent(
     name="assistant",
     instructions="You are a helpful assistant running on AWS.",
-    model="bedrock/us.anthropic.claude-sonnet-4-20250514-v1:0",
+    model="bedrock/us.anthropic.claude-haiku-4-5-20251001-v1:0",
 )
 
 app = BedrockAgentCoreApp()

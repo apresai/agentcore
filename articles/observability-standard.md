@@ -97,7 +97,7 @@ def process_request(user_input: str, session_id: str) -> str:
             with tracer.start_as_current_span(
                 "llm.generate",
                 kind=SpanKind.CLIENT,
-                attributes={"llm.model": "claude-sonnet-4-20250514"}
+                attributes={"llm.model": "claude-haiku-4-5-20251001"}
             ) as llm_span:
                 gen_start = time.time()
                 response = generate_response(user_input, tool_results)

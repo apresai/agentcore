@@ -27,7 +27,7 @@ from strands import Agent
 from strands.models import BedrockModel
 import requests
 
-model = BedrockModel(model_id="us.anthropic.claude-sonnet-4-20250514-v1:0")
+model = BedrockModel(model_id="us.anthropic.claude-haiku-4-5-20251001-v1:0")
 agent = Agent(model=model, system_prompt="You are a helpful assistant.")
 
 def lookup_order(order_id: str) -> dict:  # Hardcoded credentials
@@ -61,7 +61,7 @@ from strands import Agent
 from strands.models import BedrockModel
 from bedrock_agentcore.runtime import BedrockAgentCoreApp
 
-model = BedrockModel(model_id="us.anthropic.claude-sonnet-4-20250514-v1:0", region_name="us-east-1")
+model = BedrockModel(model_id="us.anthropic.claude-haiku-4-5-20251001-v1:0", region_name="us-east-1")
 agent = Agent(model=model, system_prompt="You are a helpful assistant.")
 app = BedrockAgentCoreApp()
 

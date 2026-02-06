@@ -103,6 +103,19 @@ Use `/agentcore-article` with the prompts in `articles/00-article-ideas.md` for 
 - [x] Push latest commit to origin
 - [x] `venv/` dirs already ignored by root `.gitignore`
 
+## Bedrock Model ID
+
+All code examples and articles must use **Claude Haiku 4.5** via Bedrock:
+
+```
+us.anthropic.claude-haiku-4-5-20251001-v1:0
+```
+
+- The `us.` prefix is required (cross-region inference profile)
+- The `-v1:0` suffix is required
+- This applies to both `strands.models.BedrockModel` and `langchain_aws.ChatBedrock`
+- For OpenAI Agents SDK: `bedrock/us.anthropic.claude-haiku-4-5-20251001-v1:0`
+
 ## Key Technical Details
 
 - **Frameworks**: LangGraph, Strands, CrewAI, LlamaIndex, Google ADK, OpenAI Agents SDK

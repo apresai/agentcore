@@ -57,7 +57,7 @@ def build_graph():
         iteration: int
 
     model = ChatBedrock(
-        model_id="us.anthropic.claude-sonnet-4-20250514-v1:0",
+        model_id="us.anthropic.claude-haiku-4-5-20251001-v1:0",
         region_name=os.getenv("AWS_REGION", "us-east-1")
     )
 

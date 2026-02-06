@@ -54,7 +54,7 @@ def strands_agent_example(prompt: str) -> str:
     # Strands provides clean, minimal API
     agent = Agent(
         model=BedrockModel(
-            model_id="us.anthropic.claude-3-haiku-20240307-v1:0",
+            model_id="us.anthropic.claude-haiku-4-5-20251001-v1:0",
             region_name=os.getenv("AWS_REGION", "us-east-1")
         ),
         system_prompt="You are a helpful assistant. Keep responses brief (1-2 sentences)."
@@ -82,7 +82,7 @@ def langgraph_agent_example(prompt: str) -> str:
 
     # Initialize Bedrock model through LangChain
     llm = ChatBedrock(
-        model_id="us.anthropic.claude-3-haiku-20240307-v1:0",
+        model_id="us.anthropic.claude-haiku-4-5-20251001-v1:0",
         region_name=os.getenv("AWS_REGION", "us-east-1"),
         model_kwargs={"max_tokens": 256}
     )

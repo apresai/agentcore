@@ -55,7 +55,7 @@ class AgentState(TypedDict):
 graph = StateGraph(AgentState)
 
 def process(state):
-    model = ChatBedrock(model_id="us.anthropic.claude-sonnet-4-20250514-v1:0")
+    model = ChatBedrock(model_id="us.anthropic.claude-haiku-4-5-20251001-v1:0")
     response = model.invoke(state["messages"])
     return {"response": response.content}
 
