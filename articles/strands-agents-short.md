@@ -21,7 +21,7 @@ from bedrock_agentcore.runtime import BedrockAgentCoreApp
 from bedrock_agentcore.memory import MemoryClient
 from bedrock_agentcore.gateway import GatewayClient
 
-model = BedrockModel(model_id="anthropic.claude-sonnet-4-20250514")
+model = BedrockModel(model_id="us.anthropic.claude-sonnet-4-20250514-v1:0")
 memory = MemoryClient()
 gateway = GatewayClient(gateway_id="gw-your-id")
 agent = Agent(model=model, tools=gateway.list_tools())

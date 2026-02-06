@@ -42,7 +42,7 @@ class ResearchState(TypedDict):
     pages_visited: list[dict]
     synthesis: str
 
-llm = ChatBedrock(model_id="anthropic.claude-sonnet-4-20250514", region_name="us-east-1")
+llm = ChatBedrock(model_id="us.anthropic.claude-sonnet-4-20250514-v1:0", region_name="us-east-1")
 browser_client = BrowserClient(region_name="us-east-1")
 
 async def plan_research(state: ResearchState) -> dict:

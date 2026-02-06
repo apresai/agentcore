@@ -59,7 +59,7 @@ AgentCore lets you swap frameworks without changing infrastructure:
 # Strands Agents (AWS native)
 from strands import Agent
 from strands.models import BedrockModel
-agent = Agent(model=BedrockModel("anthropic.claude-sonnet-4-20250514"))
+agent = Agent(model=BedrockModel("us.anthropic.claude-sonnet-4-20250514-v1:0"))
 
 # LangGraph (graph-based workflows)
 from langgraph.graph import StateGraph
