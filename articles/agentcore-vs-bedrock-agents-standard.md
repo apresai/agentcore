@@ -2,11 +2,11 @@ Amazon Bedrock Agents or AgentCore? Here's how to decide:
 
 ![AgentCore vs Bedrock Agents](images/comparison-article.webp)
 
-AWS offers two ways to build AI agents. One is fully managed, the other gives you full control. Choosing wrong means rebuilding later.
+In *The Hitchhiker's Guide to the Galaxy*, Earth's entry was famously reduced to two words: "Mostly Harmless." Accurate, perhaps, but not exactly comprehensive. AWS has a similar problem with AI agents -- two offerings, two levels of depth, and picking the wrong one means rebuilding later.
 
-**Amazon Bedrock Agents** is configuration-based: define agents, connect action groups and knowledge bases, deploy without code. Best for managed simplicity.
+**Amazon Bedrock Agents** is the "Mostly Harmless" entry: configuration-based, concise, gets the job done for simple cases. Define agents, connect action groups and knowledge bases, deploy without code. Best for managed simplicity.
 
-**Amazon Bedrock AgentCore** is code-first: bring any framework (LangGraph, Strands, CrewAI), any model (Claude, Nova, GPT-4), deploy to isolated microVMs. Best for flexibility and control.
+**Amazon Bedrock AgentCore** is the full Guide entry -- thorough, flexible, and prepared for anything the galaxy throws at you. Code-first: bring any framework (LangGraph, Strands, CrewAI), any model (Claude, Nova, GPT-4), deploy to isolated microVMs. Best for flexibility and control.
 
 ## Comparison Table
 
@@ -23,7 +23,9 @@ AWS offers two ways to build AI agents. One is fully managed, the other gives yo
 
 ## When to Choose AgentCore
 
-**Framework flexibility**: Your team uses LangGraph, CrewAI, or a custom framework. AgentCore runs any Python-based agent.
+Much like the actual *Hitchhiker's Guide* -- with its thousand or so pages on the drinking customs of Betelgeuse -- AgentCore covers territory that the short entry simply cannot.
+
+**Framework flexibility**: Your team uses LangGraph, CrewAI, or a custom framework. AgentCore runs any Python-based agent. Being locked to one framework is like being stuck on one planet -- fine until you need to go somewhere interesting.
 
 **Long-running workloads**: Research agents or complex reasoning exceeding standard timeouts. AgentCore supports 8-hour sessions.
 
@@ -59,7 +61,7 @@ AgentCore lets you swap frameworks without changing infrastructure:
 # Strands Agents (AWS native)
 from strands import Agent
 from strands.models import BedrockModel
-agent = Agent(model=BedrockModel("anthropic.claude-sonnet-4-20250514"))
+agent = Agent(model=BedrockModel("us.anthropic.claude-haiku-4-5-20251001-v1:0"))
 
 # LangGraph (graph-based workflows)
 from langgraph.graph import StateGraph
@@ -74,6 +76,8 @@ All three deploy to AgentCore Runtime the same way.
 
 ## Migration Path
 
+Upgrading from "Mostly Harmless" to the full entry is easier than you might expect.
+
 **Bedrock Agents to AgentCore**: Export action groups, convert to MCP tools via Gateway. Expect 2-4 weeks for complex agents.
 
 **Self-hosted to AgentCore**: Keep your framework code unchanged. Replace infrastructure (ECS, Lambda orchestration) with AgentCore Runtime.
@@ -82,7 +86,7 @@ All three deploy to AgentCore Runtime the same way.
 
 Start with Bedrock Agents if you're new to AI agents. Move to AgentCore when you hit limitations: framework lock-in, timeout constraints, or multi-model needs.
 
-Most production deployments eventually need AgentCore's flexibility.
+Most production deployments eventually need AgentCore's flexibility. The galaxy is a big place, and "Mostly Harmless" only gets you so far -- sooner or later, you will want the full Guide.
 
 ## Running the Example
 

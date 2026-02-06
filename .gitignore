@@ -87,3 +87,7 @@ temp/
 .gcloud/
 .config/gcloud/
 application_default_credentials.json
+
+# AgentCore CLI
+.bedrock_agentcore.yaml
+.bedrock_agentcore/

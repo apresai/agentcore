@@ -2,7 +2,9 @@ Your AI agents are running 24/7 but you're paying for 100% of compute. You shoul
 
 ![AgentCore Runtime](images/runtime-article.webp)
 
-Self-hosted agent infrastructure bleeds money. You provision EC2 instances for peak load, pay for idle containers overnight, and absorb the CPU cost while your agent waits 5 seconds for an LLM response. At scale, 30-70% of your compute bill goes toward doing nothing — your agent is simply waiting for external API calls, model inference, and database queries.
+The Sirius Cybernetics Corporation had a motto: "Share and Enjoy." It was printed on the packaging of every product they shipped, most of which were terrible. Their Complaints Division eventually occupied the major landmasses of three medium-sized planets. If your self-hosted agent infrastructure had a complaints division, it would be similarly proportioned -- because you are paying full price for compute that spends most of its time doing absolutely nothing.
+
+Self-hosted agent infrastructure bleeds money. You provision EC2 instances for peak load, pay for idle containers overnight, and absorb the CPU cost while your agent waits 5 seconds for an LLM response. At scale, 30-70% of your compute bill goes toward doing nothing -- your agent is simply waiting for external API calls, model inference, and database queries. The Sirius Cybernetics Corporation would be proud.
 
 AgentCore's consumption-based pricing eliminates this waste. You pay **$0.0895/vCPU-hour** for active CPU and **$0.00945/GB-hour** for memory — but only when your agent is actually computing. I/O wait time is free. When your agent calls Claude and waits 3 seconds for a response, those 3 seconds cost you nothing. Combine that with 1-second billing granularity, no upfront commitments, and a **$200 free tier** for new customers, and the economics shift dramatically.
 
@@ -207,7 +209,7 @@ A customer support agent handling 1 million conversations per month with 90-seco
 | Engineering ops overhead | $5,000+ | $0 (fully managed) |
 | **Total** | **$10,820+** | **$573** |
 
-The gap comes from two factors: I/O wait is free (70% of session time costs nothing), and there is no over-provisioning since you pay per-second for actual consumption only.
+The gap comes from two factors: I/O wait is free (70% of session time costs nothing), and there is no over-provisioning since you pay per-second for actual consumption only. As Zaphod Beeblebrox might say: "Ten grand a month? Hey, that's almost as much as one of my parties." With AgentCore, it is not.
 
 ## Key Benefits
 
@@ -221,7 +223,9 @@ Decision makers typically start by running a single agent on the free tier to va
 
 ## Next Steps
 
-Deploy one agent to AgentCore, run it for a week, and compare the bill against your current infrastructure cost for the same workload. Use the CloudWatch metrics code above to measure your actual I/O wait ratio — that number tells you exactly how much you will save.
+Deploy one agent to AgentCore, run it for a week, and compare the bill against your current infrastructure cost for the same workload. Use the CloudWatch metrics code above to measure your actual I/O wait ratio -- that number tells you exactly how much you will save.
+
+The answer to life, the universe, and everything may be 42 -- but the answer to "how much should I be paying for idle compute" is definitively zero. Unlike the Sirius Cybernetics Corporation, AgentCore actually delivers on the promise: share your agents, enjoy your savings, and for once the complaints division stays empty.
 
 📚 Documentation: https://docs.aws.amazon.com/bedrock-agentcore/latest/devguide/
 💰 Pricing details: https://aws.amazon.com/bedrock/agentcore/pricing/

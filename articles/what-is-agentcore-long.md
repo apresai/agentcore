@@ -2,9 +2,13 @@
 
 ![AgentCore Overview](images/overview-article.webp)
 
-Building production AI agents is hard. Most teams spend months building infrastructure before their agent handles a single customer request. Security reviews, compliance audits, scaling concerns, and operational overhead consume engineering cycles that should go toward building actual agent capabilities.
+**DON'T PANIC.**
 
-**Amazon Bedrock AgentCore** changes this equation. It provides enterprise-grade infrastructure for AI agents as a managed service, letting you focus on what your agents do rather than how they run.
+In *The Hitchhiker's Guide to the Galaxy*, the Guide itself was described as the most remarkable book ever to come out of the great publishing corporations of Ursa Minor -- not because it was accurate (it had many omissions and contained much that was apocryphal), but because it had the words **DON'T PANIC** inscribed on its cover in large, friendly letters. It also told you everything you needed to know about navigating an impossibly complex galaxy.
+
+Building production AI agents feels a lot like navigating that galaxy. Most teams spend months building infrastructure before their agent handles a single customer request. Security reviews, compliance audits, scaling concerns, and operational overhead consume engineering cycles that should go toward building actual agent capabilities.
+
+**Amazon Bedrock AgentCore** is the Guide for AI agents. It provides enterprise-grade infrastructure as a managed service, inscribed with its own version of "DON'T PANIC" -- letting you focus on what your agents do rather than how they run.
 
 This guide explains what AgentCore is, how its nine services work together, and when you should (or should not) use it for your AI initiatives.
 
@@ -23,7 +27,7 @@ The platform is framework-agnostic (works with LangGraph, Strands, CrewAI, and o
 
 ## The Nine AgentCore Services
 
-AgentCore consists of nine interconnected services. Each can be used independently or together, allowing you to start with what you need and add capabilities as your requirements grow.
+The original *Hitchhiker's Guide* had entries on everything from Babel fish to Vogon poetry. AgentCore takes a similar approach to agent infrastructure: nine interconnected services, each covering a distinct region of the operational galaxy. Each can be used independently or together, allowing you to start with what you need and add capabilities as your requirements grow.
 
 ### 1. Runtime
 
@@ -44,7 +48,7 @@ Runtime transforms any local agent into a cloud-native deployment. Each user ses
 
 **What it does**: Short-term and long-term context management.
 
-Memory addresses the statelessness problem in AI agents. Without memory, agents treat each interaction as isolated. Memory provides both session-level context (short-term) and cross-session learning (long-term).
+Memory addresses the statelessness problem in AI agents. Without memory, agents are like Marvin the Paranoid Android perpetually introduced to the same people -- they treat each interaction as isolated, with no recollection of what came before. Memory provides both session-level context (short-term) and cross-session learning (long-term).
 
 **Key capabilities**:
 - Short-term memory for multi-turn conversations within a session
@@ -58,7 +62,7 @@ Memory addresses the statelessness problem in AI agents. Without memory, agents 
 
 **What it does**: Converts APIs, Lambda functions, and services into MCP-compatible tools.
 
-Gateway bridges your existing enterprise systems and AI agents. Instead of writing custom integration code, Gateway transforms APIs into agent-ready tools with configuration, not code.
+Gateway is the Babel fish of the platform -- it bridges your existing enterprise systems and AI agents, translating between incompatible worlds. Instead of writing custom integration code, Gateway transforms APIs into agent-ready tools with configuration, not code.
 
 **Key capabilities**:
 - Multi-source tool creation (OpenAPI specs, Lambda functions, MCP servers)
@@ -145,7 +149,7 @@ Evaluations measures how well agents perform tasks, handle edge cases, and maint
 
 **What it does**: Deterministic control over agent actions.
 
-Policy creates a protective boundary around agent operations using Cedar, AWS's open-source policy language. It ensures agents operate within defined boundaries.
+Policy creates a protective boundary around agent operations using Cedar, AWS's open-source policy language. Think of it as the Vogon bureaucracy, except actually useful -- it ensures agents operate within defined boundaries with the kind of rigid determinism that would make a Vogon captain weep with joy.
 
 **Key capabilities**:
 - Cedar policy language for fine-grained permissions
@@ -157,6 +161,8 @@ Policy creates a protective boundary around agent operations using Cedar, AWS's 
 
 ## Key Differentiators
 
+Like the Guide itself, AgentCore's value is not in any single entry -- it is in the comprehensiveness of the whole thing.
+
 ### Framework Agnostic
 
 AgentCore works with any agent framework: LangGraph, Strands Agents, CrewAI, LlamaIndex, Google ADK, OpenAI Agents SDK, or custom frameworks. You are not locked in. Start with Strands and migrate to LangGraph later without changing infrastructure.
@@ -166,6 +172,8 @@ AgentCore works with any agent framework: LangGraph, Strands Agents, CrewAI, Lla
 Use any foundation model: Claude, GPT, Gemini, Nova, Llama, Mistral, or self-hosted models. You can use different models for different purposes within the same agent.
 
 ### Consumption-Based Pricing
+
+The Guide was always notable for being slightly cheaper than the *Encyclopedia Galactica*, and considerably more popular. AgentCore takes a similar approach to economics.
 
 AgentCore charges for actual resource consumption, not allocated resources:
 - **I/O wait is free**: When your agent waits for LLM responses, API calls, or database queries (often 30-70% of execution time), you pay nothing for CPU
@@ -332,7 +340,7 @@ AgentCore is available in:
 4. **Consumption pricing**: Pay for actual usage, I/O wait is free
 5. **Production-ready**: Built for scale and compliance from day one
 
-For teams building production AI agents, AgentCore eliminates the infrastructure overhead so you can focus on what your agents actually do.
+The *Hitchhiker's Guide* succeeded because it told a confused and frightened galaxy exactly what it needed to know in terms it could understand -- and stamped **DON'T PANIC** on the cover. AgentCore does the same for teams building production AI agents: it eliminates the infrastructure overhead so you can focus on what your agents actually do. The galaxy of production AI is vast and complicated, but with the right Guide, it is also navigable.
 
 ---
 

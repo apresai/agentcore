@@ -2,7 +2,9 @@ You spent three weeks building a LangGraph agent. You'll spend three months keep
 
 ![AgentCore Runtime](images/comparison-article.webp)
 
-Self-hosting LangGraph means owning the full stack: Docker images, ECS task definitions, load balancers, auto-scaling policies, and security patching. AgentCore Runtime replaces all of that with three CLI commands and a consumption-based bill where you never pay for idle infrastructure.
+In *The Hitchhiker's Guide to the Galaxy*, Ford Prefect and Zaphod Beeblebrox approach problems from opposite ends of the spectrum. Ford is practical, resourceful, and travels light -- he carries a towel and knows when to run. Zaphod is flashy, has two heads, three arms, and a stolen spaceship with an Infinite Improbability Drive. Both get the job done, but the operational overhead is rather different.
+
+Self-hosting LangGraph is the Zaphod approach: impressive, powerful, and spectacularly high-maintenance. Docker images, ECS task definitions, load balancers, auto-scaling policies, security patching -- you need all the heads and arms you can get. AgentCore Runtime is the Ford Prefect approach: it replaces all of that with three CLI commands and a consumption-based bill where you never pay for idle infrastructure. Know where your towel is, and you are good.
 
 ## Deployment: Side by Side
 
@@ -30,7 +32,7 @@ aws application-autoscaling register-scalable-target \
   --scalable-dimension ecs:service:DesiredCount --min-capacity 2 --max-capacity 20
 ```
 
-Plus: Dockerfile, task-def.json, network.json, IAM roles, security groups, health checks, and a VPC.
+Plus: Dockerfile, task-def.json, network.json, IAM roles, security groups, health checks, and a VPC. Zaphod would be proud -- that is a lot of heads to keep track of.
 
 ### LangGraph on AgentCore
 
@@ -55,7 +57,7 @@ class AgentState(TypedDict):
 graph = StateGraph(AgentState)
 
 def process(state):
-    model = ChatBedrock(model_id="anthropic.claude-sonnet-4-20250514")
+    model = ChatBedrock(model_id="us.anthropic.claude-haiku-4-5-20251001-v1:0")
     response = model.invoke(state["messages"])
     return {"response": response.content}
 
@@ -97,7 +99,7 @@ if __name__ == "__main__":
 | **Patching** | You manage everything | AWS-managed |
 | **Blast radius** | All sessions in container | Single session only |
 
-In self-hosted containers, a prompt injection achieving code execution can reach other sessions. In AgentCore, each session runs in its own microVM -- compromised sessions are fully isolated.
+In self-hosted containers, a prompt injection achieving code execution can reach other sessions -- one Vogon gets in, and the entire fleet is compromised. In AgentCore, each session runs in its own microVM -- compromised sessions are fully isolated. Even the Vogons cannot breach that hull.
 
 ## Scaling Comparison
 
@@ -145,6 +147,8 @@ You replace the hosting layer, not the application layer.
 ## Recommendation
 
 For new LangGraph deployments, start on AgentCore -- you eliminate weeks of infrastructure work and pay only for what you use. For existing deployments, evaluate migration when infrastructure maintenance costs exceed the effort of adding the AgentCore wrapper.
+
+You do not need two heads and three arms to run a LangGraph agent in production. You just need a towel and `agentcore deploy`.
 
 ## Resources
 

@@ -13,15 +13,17 @@ Prerequisites:
 - Bedrock model access enabled (Claude or other model)
 
 Usage:
-    python main.py
+    # Deploy to AgentCore Runtime
+    agentcore configure -e main.py -n runtime_demo -dt direct_code_deploy -ni
+    agentcore deploy
+    agentcore invoke '{"prompt": "What is 6 * 7?"}'
 
-Expected output:
-    ✓ Agent created successfully
-    ✓ Local test passed: "42"
-    ✓ Ready for deployment
+    # Local demo (tests agent + shows deployment instructions)
+    python main.py --demo
 """
 
 import os
+import sys
 import json
 
 # Optional: load environment variables from .env file
@@ -31,31 +33,35 @@ try:
 except ImportError:
     pass  # dotenv is optional
 
+from strands import Agent
+from bedrock_agentcore.runtime import BedrockAgentCoreApp
+
 
 # =============================================================================
-# AgentCore Runtime Agent
+# AgentCore Runtime Agent — deployable entrypoint
 # =============================================================================
 
-def create_agent():
-    """Create an agent using the Strands framework."""
-    from strands import Agent
-    return Agent()
+# Create the agent (lightweight — no API calls at import time)
+agent = Agent(
+    system_prompt=(
+        "You are Deep Thought, the second greatest computer in the Universe "
+        "of Time and Space. You answer questions helpfully and concisely, "
+        "with occasional references to the number 42."
+    )
+)
 
+# Wrap in AgentCore app for Runtime deployment
+app = BedrockAgentCoreApp()
 
-def create_agentcore_app(agent):
-    """Wrap the agent in a BedrockAgentCoreApp for deployment."""
-    from bedrock_agentcore import BedrockAgentCoreApp
-
-    app = BedrockAgentCoreApp()
-
-    @app.entrypoint
-    def invoke(payload):
-        """Handle incoming requests to the agent."""
-        user_message = payload.get("prompt", "Hello!")
-        result = agent(user_message)
-        return {"result": result.message}
-
-    return app
+@app.entrypoint
+def invoke(payload, context):
+    """Handle incoming requests to the deployed agent."""
+    user_message = payload.get("prompt", "Hello!")
+    result = agent(user_message)
+    return {
+        "result": result.message,
+        "session_id": context.session_id,
+    }
 
 
 # =============================================================================
@@ -100,11 +106,11 @@ def invoke_with_boto3(agent_runtime_arn: str, prompt: str):
 
 
 # =============================================================================
-# Main Execution
+# Local demo mode (--demo flag)
 # =============================================================================
 
-def main():
-    """Main function demonstrating AgentCore Runtime setup."""
+def run_demo():
+    """Run a local demo — creates agent, tests it, shows deployment steps."""
 
     print("=" * 60)
     print("AgentCore Runtime - Deep Thought")
@@ -120,16 +126,9 @@ def main():
     print("  After 7.5 million years of computation, Deep Thought")
     print("  delivered The Answer. AgentCore Runtime does it in seconds.")
 
-    # Step 1: Create the agent
+    # Step 1: Agent already created at module level
     print("\n[Step 1] Creating agent with Strands framework...")
-    try:
-        agent = create_agent()
-        print("✓ Agent created successfully")
-    except ImportError as e:
-        print(f"✗ Missing dependencies. Install with:")
-        print(f"  pip install bedrock-agentcore strands-agents")
-        print(f"  Error: {e}")
-        return
+    print("✓ Agent created successfully")
 
     # Step 2: Test the agent locally
     print("\n[Step 2] Testing agent locally...")
@@ -138,7 +137,6 @@ def main():
 
     try:
         response = agent(test_prompt)
-        # Extract text from response
         if hasattr(response, 'message'):
             content = response.message.get('content', [])
             if content and isinstance(content, list):
@@ -154,26 +152,20 @@ def main():
         print("  (Ensure AWS credentials are configured and Bedrock model access is enabled)")
         return
 
-    # Step 3: Create AgentCore app for deployment
+    # Step 3: Show deployment commands
     print("\n[Step 3] Creating AgentCore app...")
-    try:
-        app = create_agentcore_app(agent)
-        print("✓ AgentCore app created")
-    except ImportError as e:
-        print(f"  ✗ bedrock-agentcore not installed: {e}")
-        return
+    print("✓ AgentCore app created")
 
-    # Step 4: Show deployment commands
     print("\n[Step 4] Deploy to AgentCore Runtime:")
     print("  " + "-" * 50)
-    print("  # Initialize AgentCore project")
-    print("  agentcore init")
+    print("  # Configure the agent")
+    print("  agentcore configure -e main.py -n runtime_demo -dt direct_code_deploy -ni")
     print("")
     print("  # Deploy to AWS")
     print("  agentcore deploy")
     print("")
     print("  # Invoke your deployed agent")
-    print('  agentcore invoke "Hello, AgentCore!"')
+    print("  agentcore invoke '{\"prompt\": \"Hello, AgentCore!\"}'")
     print("  " + "-" * 50)
 
     print("\n✓ Ready for deployment!")
@@ -191,4 +183,8 @@ def main():
 
 
 if __name__ == "__main__":
-    main()
+    if "--demo" in sys.argv:
+        run_demo()
+    else:
+        # Default: start the AgentCore server (for deployment + local dev)
+        app.run()

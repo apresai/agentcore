@@ -1,8 +1,8 @@
-Your AI agent just processed a $50,000 refund. Nobody approved it. Here's how to prevent that:
+Your AI agent just processed a $50,000 refund. Nobody approved it. Not even the Vogons would let that slide, and they once demolished an entire planet over a planning permission issue. Here's how to prevent that:
 
 ![AgentCore Policy](images/policy-article.webp)
 
-AI agents are non-deterministic. They adapt, improvise, and sometimes act outside their intended authority. Traditional guardrails — prompt engineering, output filtering — are probabilistic. They reduce risk but don't eliminate it. For regulated industries, "usually follows the rules" isn't good enough.
+AI agents are non-deterministic. They adapt, improvise, and sometimes act outside their intended authority. Traditional guardrails — prompt engineering, output filtering — are probabilistic. They reduce risk but don't eliminate it. For regulated industries, "usually follows the rules" isn't good enough. You need the implacable, form-filing, triplicate-stamping bureaucratic certainty of a Vogon — but without the poetry.
 
 AgentCore Policy provides **deterministic access control** using Cedar, AWS's open-source policy language. Every tool call passes through a policy engine at the Gateway boundary *before* execution. No exceptions. If the policy says deny, the call is blocked — regardless of what the agent decided to do.
 
@@ -158,7 +158,7 @@ Agent → Gateway → Policy Engine → Tool
               → ALLOW or DENY (deterministic)
 ```
 
-Cedar follows a **default-deny** model with **forbid-wins** semantics. If no policy matches, access is denied. If any `forbid` policy matches, the result is DENY regardless of `permit` policies.
+Cedar follows a **default-deny** model with **forbid-wins** semantics. If no policy matches, access is denied. If any `forbid` policy matches, the result is DENY regardless of `permit` policies. It's the Vogon approach to authorization: resistance is useless, and so is trying to talk your way past a `forbid` rule. The good news is that Cedar syntax is considerably less painful than Vogon poetry — which, as you may recall, is the third worst in the universe.
 
 ## Key Benefits
 
@@ -172,7 +172,7 @@ Teams typically layer policies by role: broad `permit` rules for read-only tools
 
 ## Next Steps
 
-Create a policy engine, attach it to your gateway in LOG_ONLY mode, and review decisions in CloudWatch before switching to ENFORCE. Start with simple permit/forbid rules and add role-based conditions as you identify access patterns.
+Create a policy engine, attach it to your gateway in LOG_ONLY mode, and review decisions in CloudWatch before switching to ENFORCE. Start with simple permit/forbid rules and add role-based conditions as you identify access patterns. As Prostetnic Vogon Jeltz would say: "Resistance is useless!" — and with Cedar policy enforcement at the gateway boundary, he'd finally be right about something.
 
 📚 Documentation: https://docs.aws.amazon.com/bedrock-agentcore/latest/devguide/policy.html
 💻 Full runnable example: `articles/examples/gateway/` (policy integrates with Gateway)

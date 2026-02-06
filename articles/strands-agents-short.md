@@ -2,7 +2,9 @@ Deploy Strands agents to production with memory and tools -- no infrastructure r
 
 ![AgentCore Runtime](images/runtime-article.webp)
 
-Strands is AWS's open-source agent framework -- minimal code, production ready. But hosting, memory, and tool wiring are still on you.
+Ford Prefect survived fifteen years on Earth by knowing one thing: keep it simple, and always know where your towel is. Strands takes the same approach to agent frameworks -- minimal code, production ready, no unnecessary complications. It is, in the parlance of the Guide, a hoopy frood that really knows where its towel is.
+
+But even Ford needed a ship off the planet. Hosting, memory, and tool wiring are still on you.
 
 **AgentCore** handles it. Serverless microVMs, Memory for persistence, Gateway for tools -- one SDK.
 
@@ -21,7 +23,7 @@ from bedrock_agentcore.runtime import BedrockAgentCoreApp
 from bedrock_agentcore.memory import MemoryClient
 from bedrock_agentcore.gateway import GatewayClient
 
-model = BedrockModel(model_id="anthropic.claude-sonnet-4-20250514")
+model = BedrockModel(model_id="us.anthropic.claude-haiku-4-5-20251001-v1:0")
 memory = MemoryClient()
 gateway = GatewayClient(gateway_id="gw-your-id")
 agent = Agent(model=model, tools=gateway.list_tools())
@@ -46,6 +48,8 @@ if __name__ == "__main__":
 
 ## How to Run
 
+Three commands. That is it. Ford would approve -- he always said the best technology is the kind you do not have to think about, like a really good towel.
+
 ```bash
 agentcore create --framework strands --name my-agent --with-memory --with-gateway
 agentcore deploy
@@ -53,6 +57,8 @@ agentcore invoke '{"prompt": "What tools do you have?"}'
 ```
 
 **Key benefit**: Strands has first-class AgentCore support -- the simplest path to production. I/O wait is free, every request is microVM-isolated.
+
+The Guide's entry on Strands would probably read: "Mostly harmless. Extremely useful." And honestly, that is the highest compliment a framework can get.
 
 Docs: https://docs.aws.amazon.com/bedrock-agentcore/latest/devguide/
 

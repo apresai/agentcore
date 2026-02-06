@@ -2,7 +2,9 @@ Your AI agent hallucinated in production. It took three days to find out. Here's
 
 ![AgentCore Observability](images/overview-article.webp)
 
-Production agents fail in ways traditional software doesn't. A REST API either returns 200 or 500. An agent can return 200, sound confident, and be completely wrong. It can call the wrong tool, misinterpret context, or loop through reasoning steps that go nowhere. Without visibility into what your agent is actually doing — every span, every tool call, every decision — you're flying blind.
+The Total Perspective Vortex was the most savage psychic torture device ever conceived -- it showed you the entirety of creation and your infinitesimally small place within it. Agent observability is essentially the same thing, except instead of the universe you are looking at every span, tool call, and reasoning step your agent took before confidently delivering the wrong answer. The effect on unprepared engineers is remarkably similar.
+
+Production agents fail in ways traditional software doesn't. A REST API either returns 200 or 500. An agent can return 200, sound confident, and be completely wrong. It can call the wrong tool, misinterpret context, or loop through reasoning steps that go nowhere. Without visibility into what your agent is actually doing -- you're flying blind through an asteroid field in a stolen ship with the Improbability Drive stuck on maximum.
 
 AgentCore Observability gives you that visibility through **OpenTelemetry (OTEL) integration** backed by Amazon CloudWatch. Every agent invocation produces structured traces with spans for each step: intent classification, tool selection, LLM calls, and response generation. You get built-in metrics under the `Bedrock-AgentCore` namespace, custom instrumentation with standard OTEL APIs, and CloudWatch dashboards that show you exactly where things break.
 
@@ -97,7 +99,7 @@ def process_request(user_input: str, session_id: str) -> str:
             with tracer.start_as_current_span(
                 "llm.generate",
                 kind=SpanKind.CLIENT,
-                attributes={"llm.model": "claude-sonnet-4-20250514"}
+                attributes={"llm.model": "claude-haiku-4-5-20251001"}
             ) as llm_span:
                 gen_start = time.time()
                 response = generate_response(user_input, tool_results)
@@ -258,7 +260,7 @@ print(f"Dashboard: https://{region}.console.aws.amazon.com/cloudwatch/home?regio
 
 ### Debug Agent Reasoning with Log Insights
 
-Use these CloudWatch Log Insights queries against your agent's log group to diagnose production issues.
+Much like the Guide's field researchers tracking improbable events across the galaxy, you need queries that can find the one anomalous thing that went wrong among millions of things that went right. Use these CloudWatch Log Insights queries against your agent's log group to diagnose production issues.
 
 **Find errors in the last hour:**
 
@@ -308,11 +310,15 @@ by aws.operation.name
 
 ## Common Patterns
 
-Teams typically start with the built-in metrics and alarms for error rate, latency, and throttling. As agents mature, they add custom spans around business-critical steps — intent classification, tool selection, and LLM generation — to identify exactly where reasoning breaks down. The Log Insights queries become essential for post-incident analysis: tracing a specific session through every tool call and LLM interaction to understand why an agent produced a bad response.
+Teams typically start with the built-in metrics and alarms for error rate, latency, and throttling. As agents mature, they add custom spans around business-critical steps -- intent classification, tool selection, and LLM generation -- to identify exactly where reasoning breaks down. The Log Insights queries become essential for post-incident analysis: tracing a specific session through every tool call and LLM interaction to understand why an agent produced a bad response.
+
+Think of it as building your own, less psychologically devastating version of the Total Perspective Vortex -- one that shows you the entirety of your agent's decision-making without the existential crisis.
 
 ## Next Steps
 
 Enable CloudWatch Transaction Search in your account, deploy your agent with `aws-opentelemetry-distro` in your requirements, and create the three core alarms (errors, latency, throttling). Add custom spans to your most critical agent steps, then build a dashboard to watch them in real time.
+
+As the Guide itself notes in large, friendly letters: DON'T PANIC. But do instrument your agents. Panicking is optional; observability is not.
 
 Documentation: https://docs.aws.amazon.com/bedrock-agentcore/latest/devguide/observability.html
 CloudWatch GenAI Observability: https://console.aws.amazon.com/cloudwatch/home#gen-ai-observability
