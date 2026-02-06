@@ -156,21 +156,13 @@ Language: Python
 Key points: Consumption-based pricing model, I/O wait is free (only pay for compute), memory vs compute tradeoffs, $200 free tier for new customers, cost comparison with self-hosted infrastructure
 ```
 
-### 14. "Observability Best Practices for Production Agents"
+### 14. "Observability Best Practices for Production Agents" ✅
+- **Published**: [observability-standard.md](observability-standard.md)
 - OpenTelemetry integration
 - Custom metrics and spans
 - CloudWatch dashboards
 - Debugging agent reasoning
 - Target: SREs and production engineers
-
-```
-/agentcore-article
-Feature: Observability
-Format: Standard (5-10 min read)
-Audience: Developers
-Language: Python
-Key points: OpenTelemetry (OTEL) integration, custom metrics and spans for agent traces, CloudWatch dashboard setup, debugging agent reasoning chains, production monitoring best practices
-```
 
 ## Comparison Articles
 
