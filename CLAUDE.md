@@ -56,6 +56,27 @@ Skills are stored in `.claude/skills/` and symlinked to `~/.claude/skills/` for 
 - Cross-reference official AWS documentation
 - Use AgentCore CLI commands (`agentcore create`, `agentcore deploy`, `agentcore invoke`)
 
+### Hitchhiker's Guide to the Galaxy Theme (REQUIRED)
+
+All articles, code examples, and documentation must weave in **Hitchhiker's Guide to the Galaxy** references and witty comedy throughout:
+
+- **Articles**: Use HHGTTG quotes, character references, and analogies to explain AgentCore concepts
+- **Code examples**: Include themed print output, ASCII art banners, themed variable names, and witty comments
+- **READMEs**: Maintain the playful tone while staying technically accurate
+
+**Character/concept mapping:**
+| AgentCore Concept | HHGTTG Analog |
+|-------------------|---------------|
+| Runtime | Deep Thought (computing answers) |
+| Memory | Marvin the Paranoid Android (remembers everything, wishes he didn't) |
+| Gateway | The Babel Fish (universal translator for APIs) |
+| Browser | The Hitchhiker's Guide (the ultimate reference) |
+| Code Interpreter | Deep Thought's Calculator |
+| Framework comparison | Ford Prefect (simple) vs Zaphod Beeblebrox (flashy) |
+| The Answer | 42 (always) |
+
+**Tone**: Witty, self-deprecating, technically accurate. Think Douglas Adams explaining cloud infrastructure.
+
 ## Code Examples - STRICT REQUIREMENTS
 
 **NO MOCKING ALLOWED.** All code examples must:

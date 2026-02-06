@@ -219,6 +219,35 @@ cwebp -q 85 -mt -sharp_yuv -preset photo /Users/chad/dev/agentcore/articles/imag
 rm /Users/chad/dev/agentcore/articles/images/[feature]-article.png /Users/chad/dev/agentcore/articles/images/[feature]-article-resized.png
 ```
 
+### Step 5.5: Apply Hitchhiker's Guide to the Galaxy Theme (REQUIRED)
+
+**All content must weave in Hitchhiker's Guide to the Galaxy references and witty comedy.**
+
+This is not optional. Every article, code example, and README must have HHGTTG flavor throughout — not just a token quote, but a consistent theme woven into the narrative.
+
+**Character/concept mapping for AgentCore features:**
+
+| Feature | HHGTTG Character/Concept | Tone |
+|---------|-------------------------|------|
+| Runtime | Deep Thought (computing The Answer) | "7.5 million years of computation, or 8 hours on AgentCore" |
+| Memory | Marvin the Paranoid Android (remembers everything) | "Brain the size of a planet, now with cross-session persistence" |
+| Gateway | The Babel Fish (universal translator) | "Instant, universal API translation" |
+| Browser | The Hitchhiker's Guide itself (browsing knowledge) | "DON'T PANIC — your agent is browsing" |
+| Code Interpreter | Deep Thought's Calculator | "The Answer is 42. Let me prove it." |
+| Identity | Vogon Bureaucracy (papers, please) | "Authorization forms in triplicate" |
+| Policy | Vogon Poetry / The Guide's editorial policy | "Cedar policies: less painful than Vogon poetry" |
+| Observability | The Guide's field researchers | "Tracing every improbable event" |
+| Comparison | Ford Prefect (simple) vs Zaphod Beeblebrox (flashy) | "Different researchers, same Universe" |
+
+**How to apply the theme:**
+
+1. **Article prose**: Use HHGTTG quotes and analogies to introduce concepts. Map technical ideas to Guide concepts.
+2. **Code examples**: Include themed ASCII art banners, Marvin quotes in print statements, 42-themed test data, witty comments referencing the books.
+3. **READMEs**: Maintain the playful tone in descriptions while keeping setup instructions clear.
+4. **Expected output**: Show the themed output (Deep Thought banners, Marvin quotes, etc.) in the README's expected output section.
+
+**Tone**: Witty and self-deprecating like Douglas Adams. Technically accurate but entertaining. The comedy should make complex AWS concepts more approachable, not obscure them.
+
 ### Step 6: Generate Article
 
 Assemble the article using these templates:
@@ -902,6 +931,12 @@ Before delivering the article:
 - [ ] Expected output verified (✓ markers present)
 - [ ] AWS resources cleaned up after test
 - [ ] Test passed before delivery
+
+**Hitchhiker's Guide Theme (REQUIRED):**
+- [ ] Article uses HHGTTG quotes, analogies, and character references throughout
+- [ ] Code examples have themed output (ASCII banners, witty print statements, 42 references)
+- [ ] README expected output matches the themed code output
+- [ ] Tone is witty and Douglas Adams-esque while remaining technically accurate
 
 **Art:**
 - [ ] Art generated with `gimage generate`
