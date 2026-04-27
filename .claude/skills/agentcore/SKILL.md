@@ -253,6 +253,120 @@ print(chat("What's my name?", agent_arn))  # Agent remembers
 
 ---
 
+## Long-Running Tasks Pattern
+
+Authoritative AWS guidance for agents that do work longer than a synchronous request can hold open (5–60+ minutes: video/audio pipelines, large-batch inference, multi-step data processing).
+
+**Sources (verbatim reference material):**
+- Docs: https://docs.aws.amazon.com/bedrock-agentcore/latest/devguide/runtime-long-run.html
+- AWS blog: https://aws.amazon.com/blogs/machine-learning/build-long-running-mcp-servers-on-amazon-bedrock-agentcore-with-strands-agents-integration/
+- Sample repo: https://github.com/aws-samples/sample-mcp-for-long-runing-tasks-with-amazon-bedrock-agentcore
+
+### The core pattern — job_id + polling on a sticky session
+
+1. **Tool returns a job_id immediately.** Don't block the MCP request. The tool kicks off a goroutine/thread that does the real work, then returns a handle (UUID, ULID, or deterministic ID derived from the task).
+2. **Background goroutine writes progress to durable storage** — DynamoDB, AgentCore Memory, or similar. Never in-memory only; the microVM can be recycled between invocations.
+3. **Client polls a separate status tool** (`check_task_status(job_id)`, `get_podcast(id)`, etc.). AWS's sample repo does exactly this — no push, no webhooks, no SNS.
+4. **Client reuses the same `Mcp-Session-Id` across every call tied to the job.** This is the single most important detail — AgentCore routes all requests for a given Mcp-Session-Id to the **same microVM**. If the client creates a new session per poll, AgentCore boots a fresh microVM per poll and you get a container churn storm (and orphan false-positives if you have any boot-time cleanup logic).
+   - **Recommended**: use the `job_id` itself as the `Mcp-Session-Id`. Deterministic, stateless clients (Lambda, browsers) don't need to remember session IDs.
+
+### `/ping` HealthyBusy — the 15-minute idle-timeout escape hatch
+
+AgentCore kills idle sessions after 15 minutes by default. *Idle means "no in-flight invocation AND no HealthyBusy ping."* Long-running background work must signal busy state or the session gets recycled mid-job.
+
+Python SDK (built-in task tracking):
+
+```python
+from bedrock_agentcore.runtime import BedrockAgentCoreApp
+app = BedrockAgentCoreApp()
+
+@app.tool
+def start_work():
+    task_id = app.add_async_task("processing")  # /ping now returns HealthyBusy
+    def worker():
+        # ... do work ...
+        app.complete_async_task(task_id)  # /ping flips back to Healthy
+    threading.Thread(target=worker, daemon=True).start()
+    return {"task_id": task_id}
+```
+
+Or custom ping handler:
+
+```python
+@app.ping
+def status():
+    return PingStatus.HEALTHY_BUSY if system_busy() else PingStatus.HEALTHY
+```
+
+Go (no SDK — implement the HTTP handler directly):
+
+```go
+// /ping must NEVER block. Keep ActiveCount() behind a mutex-guarded counter.
+mux.HandleFunc("/ping", func(w http.ResponseWriter, r *http.Request) {
+    status := "Healthy"
+    if taskMgr.ActiveCount() > 0 {
+        status = "HealthyBusy"
+    }
+    w.Header().Set("Content-Type", "application/json")
+    json.NewEncoder(w).Encode(map[string]string{"status": status})
+})
+```
+
+**Critical**: the `/ping` handler must never block — if the entrypoint goroutine holds a lock the ping thread needs, the session gets idle-killed at minute 15 with no warning. Separate threads or async.
+
+### Session lifecycle knobs (LifecycleConfiguration)
+
+- `idleRuntimeSessionTimeout`: default 900 s (15 min), range 60–28800 s. Resets on every invoke OR HealthyBusy ping.
+- `maxLifetime`: default 28800 s (8 h), range 60–28800 s. Starts at microVM creation, **does not reset** — a job longer than this gets cycled regardless.
+- Constraint: `idle ≤ max`.
+- Configure via `aws bedrock-agentcore-control update-agent-runtime --lifecycle-configuration '{"idleRuntimeSessionTimeout": 1800, "maxLifetime": 28800}'` or via CDK `LifecycleConfiguration` on `CfnAgentRuntime`.
+
+### What AWS explicitly does NOT recommend
+
+- **Push notifications via EventBridge, SNS, SQS, AppSync, DDB Streams** — AWS's official sample uses polling only. Rationale: simpler, one source of truth, no eventual-consistency headaches. Add push layers only if the job volume or client pattern demands it.
+- **Blocking the MCP request for the full job duration** — works for jobs under 15 min but can't survive reconnects or container cycling. Break into async-task pattern even for 5–10 minute jobs.
+- **In-memory state** — the microVM can be replaced between calls even inside a "sticky" session. Every state mutation goes to durable storage (DDB / Memory).
+
+### Common pitfalls
+
+| Pitfall | Symptom | Fix |
+|---|---|---|
+| Clients create fresh `Mcp-Session-Id` per poll | Container boot storm; cross-microVM races; false-positive "orphan" cleanup | Reuse one session_id for the job lifetime (use job_id itself) |
+| `/ping` blocked by main work | Session killed at 15 min with no log | Keep ping on a separate thread; never acquire locks held by workers |
+| Progress only in memory | Client reconnects see stale/no progress | Write progress to DDB / AgentCore Memory on every update |
+| No `HealthyBusy` signal | Long jobs killed mid-flight at 15 min | Call `add_async_task` (SDK) or return `HealthyBusy` from `/ping` |
+| Background goroutine holds the parent request's `ctx` | Goroutine cancelled when the invoke response returns | Derive a detached context from a base context that outlives the request |
+| Retry loops that go silent for >5 min | Boot-time orphan scanners (if any) mistakenly fail the job | Heartbeat to DDB separately from progress writes |
+
+### When to reach for AgentCore Memory
+
+AgentCore Memory is AWS's built-in durable state service (short + long-term). For long-running jobs, Memory is better than raw DDB when:
+- You need cross-agent or cross-session context
+- You want AWS to manage the schema
+- You're using the Strands/LangGraph SDK's built-in `AgentCoreMemorySessionManager`
+
+Raw DDB is better when:
+- You need arbitrary secondary indexes / custom queries
+- The schema is project-specific (e.g. podcast metadata, status enums, credit balances)
+- You already have a single-table design
+
+Either way: write progress ON EVERY MEANINGFUL STATE CHANGE so clients polling see a fresh row and session-reconnects can resume from known state.
+
+### Verification checklist
+
+Before declaring a long-running agent "production ready":
+
+- [ ] Tool returns `job_id` in <5 seconds; actual work runs in a goroutine/thread.
+- [ ] Progress writes land in durable storage every 1–5 s.
+- [ ] `/ping` returns `HealthyBusy` while workers are active (test with `curl /ping` during a job).
+- [ ] Client uses a single `Mcp-Session-Id` across all calls for one job (test: `aws logs filter-log-events ... "Podcaster MCP Server starting"` should show one boot per job, not one per poll).
+- [ ] Reconnect works: kill the client mid-job, start fresh with the same session_id, poll returns current status.
+- [ ] `LifecycleConfiguration` is set and sized for the longest job you expect.
+- [ ] Logs carry the session_id so CloudWatch queries can scope to a single job.
+- [ ] Credit/billing handled idempotently — a retried invocation must not double-bill.
+
+---
+
 ## Troubleshooting
 
 ### Common Errors
