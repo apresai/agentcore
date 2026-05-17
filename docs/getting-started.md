@@ -64,7 +64,7 @@ from strands.models import BedrockModel
 
 def create_agent():
     """Create a simple AgentCore agent."""
-    model = BedrockModel(model_id="anthropic.claude-3-haiku-20240307-v1:0")
+    model = BedrockModel(model_id="us.anthropic.claude-haiku-4-5-20251001-v1:0")
 
     agent = Agent(
         model=model,
@@ -197,7 +197,7 @@ graph TD
 from strands import Agent
 from strands.models import BedrockModel
 
-model = BedrockModel(model_id="anthropic.claude-3-sonnet-20240229-v1:0")
+model = BedrockModel(model_id="anthropic.claude-sonnet-4-6")
 
 agent = Agent(
     model=model,
@@ -217,7 +217,7 @@ response = agent.run("Hello!")
 from langgraph.graph import StateGraph
 from langchain_aws import ChatBedrock
 
-model = ChatBedrock(model_id="anthropic.claude-3-sonnet-20240229-v1:0")
+model = ChatBedrock(model_id="anthropic.claude-sonnet-4-6")
 
 # Define your graph
 workflow = StateGraph(AgentState)

@@ -625,7 +625,7 @@ def get_weather(location: str) -> str:
 
 # Configure model and agent
 model = BedrockModel(
-    model_id="us.anthropic.claude-3-7-sonnet-20250219-v1:0"
+    model_id="us.anthropic.claude-sonnet-4-6"
 )
 
 agent = Agent(
@@ -841,7 +841,7 @@ def get_forecast(location: str, days: int = 5) -> list:
 
 # Create agent with Bedrock model
 model = BedrockModel(
-    model_id="us.anthropic.claude-3-7-sonnet-20250219-v1:0",
+    model_id="us.anthropic.claude-sonnet-4-6",
     region_name="us-east-1"
 )
 
@@ -895,7 +895,7 @@ def create_research_agent():
     """Create a LangGraph research agent with observability."""
 
     llm = ChatBedrock(
-        model_id="us.anthropic.claude-3-7-sonnet-20250219-v1:0",
+        model_id="us.anthropic.claude-sonnet-4-6",
         region_name="us-east-1"
     )
 

@@ -526,7 +526,7 @@ app = BedrockAgentCoreApp()
 
 # Initialize LLM
 llm = init_chat_model(
-    "us.anthropic.claude-3-5-haiku-20241022-v1:0",
+    "us.anthropic.claude-haiku-4-5-20251001-v1:0",
     model_provider="bedrock_converse",
 )
 
@@ -618,7 +618,7 @@ USER_ID = "user1234"
 
 # Create agent with Google Search
 root_agent = Agent(
-    model="gemini-2.0-flash",
+    model="gemini-3-1-flash-lite-preview",
     name="search_agent",
     description="Agent to answer questions using Google Search.",
     instruction="I can answer your questions by searching the internet.",
@@ -673,7 +673,7 @@ app = BedrockAgentCoreApp()
 
 def create_crew():
     llm = ChatBedrock(
-        model_id="anthropic.claude-3-sonnet-20240229-v1:0",
+        model_id="anthropic.claude-sonnet-4-6",
         model_kwargs={"temperature": 0.1}
     )
 

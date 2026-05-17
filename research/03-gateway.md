@@ -815,7 +815,7 @@ from strands.tools import tool
 from bedrock_agentcore.gateway import GatewayClient
 
 # Initialize
-model = BedrockModel(model_id="anthropic.claude-sonnet-4-20250514")
+model = BedrockModel(model_id="anthropic.claude-sonnet-4-6")
 gateway = GatewayClient(gateway_id="gw-abc123xyz")
 
 # Get tools from gateway

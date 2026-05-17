@@ -166,7 +166,7 @@ from strands.models import BedrockModel
 
 def create_agent():
     model = BedrockModel(
-        model_id="anthropic.claude-3-sonnet-20240229-v1:0"
+        model_id="anthropic.claude-sonnet-4-6"
     )
 
     agent = Agent(
@@ -190,7 +190,7 @@ from langchain_aws import ChatBedrock
 
 def create_agent():
     model = ChatBedrock(
-        model_id="anthropic.claude-3-sonnet-20240229-v1:0"
+        model_id="anthropic.claude-sonnet-4-6"
     )
 
     # Define graph
@@ -220,7 +220,7 @@ max_session_duration: 28800  # seconds (8 hours)
 # Environment variables
 environment:
   LOG_LEVEL: INFO
-  MODEL_ID: anthropic.claude-3-sonnet-20240229-v1:0
+  MODEL_ID: anthropic.claude-sonnet-4-6
 
 # VPC configuration (optional)
 vpc:

@@ -468,7 +468,7 @@ from bedrock_agentcore.runtime import BedrockAgentCoreApp
 
 # Initialize model
 model = BedrockModel(
-    model_id="anthropic.claude-sonnet-4-20250514",
+    model_id="anthropic.claude-sonnet-4-6",
     region_name="us-east-1"
 )
 
@@ -579,7 +579,7 @@ class AgentState(TypedDict):
 graph = StateGraph(AgentState)
 
 def process_message(state):
-    model = ChatBedrock(model_id="anthropic.claude-sonnet-4-20250514")
+    model = ChatBedrock(model_id="anthropic.claude-sonnet-4-6")
     response = model.invoke(state["messages"])
     return {"response": response.content}
 

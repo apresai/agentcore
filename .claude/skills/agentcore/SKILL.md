@@ -134,7 +134,7 @@ from bedrock_agentcore.runtime import BedrockAgentCoreApp
 
 # Initialize model
 model = BedrockModel(
-    model_id="anthropic.claude-sonnet-4-20250514",
+    model_id="anthropic.claude-sonnet-4-6",
     region_name="us-east-1"
 )
 

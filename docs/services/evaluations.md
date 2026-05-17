@@ -57,7 +57,7 @@ evaluator = evals.create_evaluator(
     2: Minimally helpful
     1: Not helpful at all
     """,
-    model_id="anthropic.claude-3-sonnet-20240229-v1:0"
+    model_id="anthropic.claude-sonnet-4-6"
 )
 ```
 
@@ -102,8 +102,8 @@ results = evals.compare(
         {"input": "How do I deploy an agent?"},
     ],
     models=[
-        "anthropic.claude-3-sonnet-20240229-v1:0",
-        "anthropic.claude-3-haiku-20240307-v1:0"
+        "anthropic.claude-sonnet-4-6",
+        "us.anthropic.claude-haiku-4-5-20251001-v1:0"
     ],
     evaluators=["helpfulness", "accuracy"]
 )

@@ -223,7 +223,7 @@ from strands import Agent
 from strands.models import BedrockModel
 from strands.memory import AgentCoreMemory
 
-model = BedrockModel(model_id="anthropic.claude-3-sonnet-20240229-v1:0")
+model = BedrockModel(model_id="anthropic.claude-sonnet-4-6")
 
 # Configure memory
 memory = AgentCoreMemory(

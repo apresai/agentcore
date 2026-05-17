@@ -142,7 +142,7 @@ Each custom evaluator requires:
     "llmAsAJudge": {
         "modelConfig": {
             "bedrockEvaluatorModelConfig": {
-                "modelId": "global.anthropic.claude-sonnet-4-5-20250929-v1:0",
+                "modelId": "global.anthropic.claude-sonnet-4-6",
                 "inferenceConfig": {
                    "maxTokens": 500,
                    "temperature": 1.0
@@ -294,7 +294,7 @@ response = control_client.create_evaluator(
         "llmAsAJudge": {
             "modelConfig": {
                 "bedrockEvaluatorModelConfig": {
-                    "modelId": "global.anthropic.claude-sonnet-4-5-20250929-v1:0",
+                    "modelId": "global.anthropic.claude-sonnet-4-6",
                     "inferenceConfig": {
                         "maxTokens": 500,
                         "temperature": 1.0
@@ -421,7 +421,7 @@ Instructions define how the LLM judge should evaluate agent performance. Include
 Supported models for evaluation include Claude and other Bedrock foundation models. Use the global inference profile for cross-region support:
 
 ```
-global.anthropic.claude-sonnet-4-5-20250929-v1:0
+global.anthropic.claude-sonnet-4-6
 ```
 
 ### Rating Scales
@@ -512,7 +512,7 @@ evaluator_config = {
     "llmAsAJudge": {
         "modelConfig": {
             "bedrockEvaluatorModelConfig": {
-                "modelId": "global.anthropic.claude-sonnet-4-5-20250929-v1:0",
+                "modelId": "global.anthropic.claude-sonnet-4-6",
                 "inferenceConfig": {
                     "maxTokens": 500,
                     "temperature": 1.0
@@ -805,7 +805,7 @@ provider.add_span_processor(processor)
 trace.set_tracer_provider(provider)
 
 # Create agent with instrumentation
-model = BedrockModel(model_id="anthropic.claude-sonnet-4-20250514")
+model = BedrockModel(model_id="anthropic.claude-sonnet-4-6")
 agent = Agent(model=model, system_prompt="You are a helpful assistant.")
 
 app = BedrockAgentCoreApp()
@@ -842,7 +842,7 @@ AwsOpenTelemetryDistro().configure(
     exporter_endpoint="https://xray.us-east-1.amazonaws.com"
 )
 
-model = BedrockModel(model_id="anthropic.claude-sonnet-4-20250514")
+model = BedrockModel(model_id="anthropic.claude-sonnet-4-6")
 agent = Agent(model=model, system_prompt="You are a helpful assistant.")
 
 # Agent traces are automatically captured for evaluation

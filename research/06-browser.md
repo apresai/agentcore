@@ -980,7 +980,7 @@ browser_tool = BrowserTool(
 )
 
 # Create agent with browser capabilities
-model = BedrockModel(model_id='anthropic.claude-sonnet-4-20250514')
+model = BedrockModel(model_id='anthropic.claude-sonnet-4-6')
 
 agent = Agent(
     model=model,

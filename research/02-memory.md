@@ -567,7 +567,7 @@ memory = client.create_memory_and_wait(
             "customMemoryStrategy": {
                 "name": "ProductInterestTracker",
                 "namespaces": ["products"],
-                "modelId": "anthropic.claude-sonnet-4-20250514",
+                "modelId": "anthropic.claude-sonnet-4-6",
                 "extractionPrompt": """
                     Analyze the conversation and extract any products
                     the user has shown interest in. Include:
@@ -823,7 +823,7 @@ session_manager = AgentCoreMemorySessionManager(memory_config)
 
 # Create model
 model = BedrockModel(
-    model_id="anthropic.claude-sonnet-4-20250514",
+    model_id="anthropic.claude-sonnet-4-6",
     region_name="us-east-1"
 )
 
