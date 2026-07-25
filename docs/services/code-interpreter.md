@@ -49,16 +49,18 @@ AgentCore Code Interpreter enables AI agents to write and execute code securely,
 
 ## Quick Start
 
+There is no `bedrock_agentcore.code_interpreter` module or `CodeInterpreterClient`/`.execute()`/`.create_session()` - the real high-level class is `CodeInterpreter` in `bedrock_agentcore.tools`, with `start()`, `execute_code()`, `execute_command()`, `upload_file()`, and `install_packages()`. The constructor takes `region` as a positional argument.
+
 ### Execute Code
 
 ```python
-from bedrock_agentcore.code_interpreter import CodeInterpreterClient
+from bedrock_agentcore.tools import CodeInterpreter
 
-interpreter = CodeInterpreterClient()
+interpreter = CodeInterpreter("us-east-1")
+interpreter.start()
 
-# Execute Python code
-result = interpreter.execute(
-    code="""
+try:
+    result = interpreter.execute_code("""
 import pandas as pd
 import numpy as np
 
@@ -69,54 +71,66 @@ df = pd.DataFrame(data)
 # Calculate statistics
 print(f"Mean: {df['value'].mean():.2f}")
 print(f"Std:  {df['value'].std():.2f}")
-""",
-    language="python"
-)
+""")
 
-print(result.output)
+    for event in result["stream"]:
+        for content in event.get("result", {}).get("content", []):
+            if content["type"] == "text":
+                print(content["text"])
+finally:
+    interpreter.stop()
 ```
 
 ### Process Files
 
 ```python
-# Upload file for processing
-session = interpreter.create_session()
+from bedrock_agentcore.tools import CodeInterpreter
 
-# Upload CSV
-session.upload_file(
-    file_path="data.csv",
-    file_name="data.csv"
-)
+interpreter = CodeInterpreter("us-east-1")
+interpreter.start()
 
-# Process the file
-result = session.execute(
-    code="""
+try:
+    with open("data.csv", "rb") as f:
+        interpreter.upload_file(path="data.csv", content=f.read())
+
+    result = interpreter.execute_code("""
 import pandas as pd
 
 df = pd.read_csv('data.csv')
 print(f"Rows: {len(df)}")
 print(f"Columns: {list(df.columns)}")
 print(df.describe())
-"""
-)
+""")
+finally:
+    interpreter.stop()
 ```
 
 ### Large File Processing (S3)
 
+`execute_code()` has no `input_s3_uri`/`output_s3_uri` parameter - files over the 100MB inline-upload limit are staged through S3 with shell commands inside the session (the session's execution role needs S3 read/write access):
+
 ```python
-# For files > 100MB, use S3
-result = interpreter.execute(
-    code="""
+from bedrock_agentcore.tools import CodeInterpreter
+
+interpreter = CodeInterpreter("us-east-1")
+interpreter.start()
+
+try:
+    interpreter.execute_command(
+        "aws s3 cp s3://my-bucket/large_dataset.parquet /tmp/large_dataset.parquet"
+    )
+
+    result = interpreter.execute_code("""
 import pandas as pd
 
-# File is mounted from S3
-df = pd.read_parquet('/data/large_dataset.parquet')
+df = pd.read_parquet('/tmp/large_dataset.parquet')
 summary = df.groupby('category').agg({'value': ['mean', 'sum']})
-summary.to_csv('/output/summary.csv')
-""",
-    input_s3_uri="s3://my-bucket/large_dataset.parquet",
-    output_s3_uri="s3://my-bucket/output/"
-)
+summary.to_csv('/tmp/summary.csv')
+""")
+
+    interpreter.execute_command("aws s3 cp /tmp/summary.csv s3://my-bucket/output/summary.csv")
+finally:
+    interpreter.stop()
 ```
 
 ## Use Cases

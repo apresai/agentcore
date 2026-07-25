@@ -21,8 +21,8 @@
 | [Code Interpreter](services/code-interpreter.md) | Secure Python/JS/TS execution | GA |
 | [Browser](services/browser.md) | Isolated web automation | GA |
 | [Observability](services/observability.md) | OTEL tracing and metrics | GA |
-| [Evaluations](services/evaluations.md) | LLM-as-a-Judge quality | Preview |
-| [Policy](services/policy.md) | Cedar access control | Preview |
+| [Evaluations](services/evaluations.md) | LLM-as-a-Judge quality | GA |
+| [Policy](services/policy.md) | Cedar access control | GA |
 
 ### Examples
 
@@ -145,56 +145,93 @@ research/
 
 ### Deploy an Agent
 
+`create` takes a `-p`/`--project-name` flag, not a positional name, and project names are alphanumeric only (no `-`/`_`). `deploy` and `invoke` take the agent name via `--agent`/`-a`, not positionally, and `invoke`'s payload must be JSON:
+
 ```bash
 # Create
-agentcore create my-agent
+agentcore create --project-name myagent --agent-framework Strands --model-provider Bedrock
 
 # Deploy
-agentcore deploy my-agent
+cd myagent
+agentcore deploy
 
 # Invoke
-agentcore invoke my-agent "Hello!"
+agentcore invoke '{"prompt": "Hello!"}'
 ```
 
 ### Add Memory to Your Agent
 
+There is no `create_session()`/`add_message()`/`get_messages()` - store and retrieve conversation turns directly on a memory resource:
+
 ```python
 from bedrock_agentcore.memory import MemoryClient
 
-memory = MemoryClient()
-session = memory.create_session(agent_id="my-agent")
+memory = MemoryClient(region_name="us-east-1")
 
-# Store context
-session.add_message(role="user", content="I prefer window seats")
+# Store context (messages are (text, role) tuples)
+memory.create_event(
+    memory_id="my-memory-id",
+    actor_id="user-123",
+    session_id="session-abc",
+    messages=[("I prefer window seats", "USER")],
+)
 
 # Retrieve later
-context = session.get_messages()
+turns = memory.get_last_k_turns(
+    memory_id="my-memory-id",
+    actor_id="user-123",
+    session_id="session-abc",
+    k=5,
+)
 ```
 
 ### Connect APIs via Gateway
 
+`GatewayClient` has no `create_from_openapi()` - create a gateway, then attach an OpenAPI spec (staged in S3) as a target:
+
 ```python
 from bedrock_agentcore.gateway import GatewayClient
 
-gateway = GatewayClient()
+gateway = GatewayClient(region_name="us-east-1")
 
-# Create MCP tools from OpenAPI spec
-tools = gateway.create_from_openapi(
-    name="my-api",
-    spec_url="https://api.example.com/openapi.json"
+gw = gateway.create_gateway_and_wait(
+    name="MyGateway",
+    roleArn="arn:aws:iam::123456789012:role/GatewayRole",
+    authorizerType="AWS_IAM",
+    protocolType="MCP",
+)
+
+target = gateway.create_gateway_target_and_wait(
+    gatewayIdentifier=gw["gatewayId"],
+    name="MyAPI",
+    targetConfiguration={
+        "mcp": {
+            "openApiSchema": {
+                "s3": {"uri": "s3://my-bucket/specs/my-api.yaml"},
+            }
+        }
+    },
 )
 ```
 
 ### Add Policy Rules
 
+`bedrock_agentcore.policy` exports `PolicyEngineClient`, not `PolicyClient`; natural-language policy authoring is `generate_and_create_policy(policy_engine_id=, generation_name=, policy_name=, resource=, content=)`, not `create_from_description()`:
+
 ```python
-from bedrock_agentcore.policy import PolicyClient
+from bedrock_agentcore.policy import PolicyEngineClient
 
-policy = PolicyClient()
+policy = PolicyEngineClient(region_name="us-east-1")
 
-# Natural language policy
-policy.create_from_description(
-    "Allow read-only access to customer data for support agents"
+engine = policy.create_or_get_policy_engine(name="MyPolicyEngine")
+
+# Natural language policy, generated as Cedar and created in one step
+policy.generate_and_create_policy(
+    policy_engine_id=engine["policyEngineId"],
+    generation_name="customer-data-readonly-gen",
+    policy_name="customer-data-readonly",
+    resource={"arn": "arn:aws:bedrock-agentcore:us-east-1:123456789012:gateway/gw-abc123"},
+    content={"rawText": "Allow read-only access to customer data for support agents"},
 )
 ```
 

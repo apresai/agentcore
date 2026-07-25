@@ -1029,7 +1029,7 @@ New AWS customers receive up to $200 in Free Tier credits for AgentCore.
 
 Harness (managed multi-turn agent hosting), Registry (discover/manage agents, tools, and resources), and Payments (agent-initiated payment authorization) are newer capabilities layered on top of the original service set above; Harness and Registry are boto3-only today (no dedicated Python SDK submodule), while Payments has its own `bedrock_agentcore.payments` submodule. See each service's own devguide page for details - they are not covered as separate deep-dive sections in this doc.
 
-There is no "Optimization" service - AWS's optimization *capabilities* (batch evaluation, A/B testing, recommendations) are real and documented, but they are implemented as operations under other API namespaces (e.g. `StartBatchEvaluation`, `CreateABTest`), not as a standalone `Optimization` API.
+AgentCore optimization is a documented capability area with its own devguide page and its own row in the region-support matrix, but it has no standalone `Optimization` API namespace: the functionality is implemented as operations under other namespaces (e.g. `StartBatchEvaluation`, `CreateABTest`). Status is split - batch evaluations, recommendations and A/B tests are GA; Insights is Preview.
 
 ### Recent Announcements
 

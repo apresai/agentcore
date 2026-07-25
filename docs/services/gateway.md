@@ -77,118 +77,187 @@ Returns: [get_customer, search_customers, get_customer_orders]
 
 ## Quick Start
 
-### Create Gateway from OpenAPI
+`GatewayClient` manages gateway and target *resources* (create/get/list/update/delete, plus `*_and_wait` variants) - it has no `create_from_openapi`, `create_from_lambda`, `enable_integration`, or `connect_mcp_server` methods, and it does not proxy tool calls. Create a gateway once, then attach one or more targets to it.
+
+### Create a Gateway
 
 ```python
 from bedrock_agentcore.gateway import GatewayClient
 
-gateway = GatewayClient()
+gateway = GatewayClient(region_name="us-east-1")
 
-# Create tools from OpenAPI spec
-tools = gateway.create_from_openapi(
+# Waits for the gateway to reach READY (or raises on FAILED)
+gw = gateway.create_gateway_and_wait(
+    name="MyGateway",
+    roleArn="arn:aws:iam::123456789012:role/GatewayRole",
+    authorizerType="AWS_IAM",
+    protocolType="MCP",
+    protocolConfiguration={"mcp": {"searchType": "SEMANTIC"}},
+)
+
+gateway_id = gw["gatewayId"]
+gateway_url = gw["gatewayUrl"]
+```
+
+### Add an OpenAPI Target
+
+```python
+# The OpenAPI spec must be staged in S3 first.
+target = gateway.create_gateway_target_and_wait(
+    gatewayIdentifier=gateway_id,
     name="my-api",
-    spec_url="https://api.example.com/openapi.json"
+    targetConfiguration={
+        "mcp": {
+            "openApiSchema": {
+                "s3": {"uri": "s3://my-bucket/specs/my-api.yaml"},
+            }
+        }
+    },
 )
-
-print(f"Created {len(tools)} tools")
-for tool in tools:
-    print(f"  - {tool.name}: {tool.description}")
 ```
 
-### Create Gateway from Lambda
+### Add a Lambda Target
 
 ```python
-# Wrap Lambda function as MCP tool
-tool = gateway.create_from_lambda(
+# Wrap a Lambda function as an MCP tool
+target = gateway.create_gateway_target_and_wait(
+    gatewayIdentifier=gateway_id,
     name="process-order",
-    function_arn="arn:aws:lambda:us-east-1:123456789:function:process-order",
-    description="Process a customer order"
+    targetConfiguration={
+        "mcp": {
+            "lambda": {
+                "lambdaArn": "arn:aws:lambda:us-east-1:123456789012:function:process-order",
+                "toolSchema": {
+                    "inlinePayload": [
+                        {
+                            "name": "process_order",
+                            "description": "Process a customer order",
+                            "inputSchema": {
+                                "type": "object",
+                                "properties": {"order_id": {"type": "string"}},
+                                "required": ["order_id"],
+                            },
+                        }
+                    ]
+                },
+            }
+        }
+    },
 )
 ```
 
-### Enable 1-Click Integration
+### Enable a 1-Click Integration
+
+1-click integrations are a `connector` target backed by AWS's managed connector catalog, not an `enable_integration()` SDK call:
 
 ```python
-# Enable Slack integration
-slack_tools = gateway.enable_integration(
-    name="slack",
-    config={
-        "workspace_id": "T12345678"
-    }
+target = gateway.create_gateway_target_and_wait(
+    gatewayIdentifier=gateway_id,
+    name="SlackConnector",
+    targetConfiguration={
+        "mcp": {
+            "connector": {
+                "source": {"connectorId": "slack", "version": "1"},  # see the console's connector catalog for valid IDs
+            }
+        }
+    },
+    credentialProviderConfigurations=[
+        {
+            "credentialProviderType": "OAUTH",
+            "credentialProvider": {
+                "oauthCredentialProvider": {
+                    "providerArn": "arn:aws:bedrock-agentcore:us-east-1:123456789012:credential-provider/slack-oauth",
+                    "scopes": ["chat:write", "channels:read"],
+                }
+            },
+        }
+    ],
 )
-
-# OAuth flow handled automatically
-print(f"Slack tools: {[t.name for t in slack_tools]}")
-# ['slack_send_message', 'slack_list_channels', ...]
 ```
 
-### Connect Existing MCP Server
+### Connect an Existing MCP Server
 
 ```python
-# Connect to external MCP server
-tools = gateway.connect_mcp_server(
+target = gateway.create_gateway_target_and_wait(
+    gatewayIdentifier=gateway_id,
     name="company-tools",
-    url="https://mcp.company.com",
-    auth_token="..."
+    targetConfiguration={
+        "mcp": {
+            "mcpServer": {
+                "endpoint": "https://mcp.company.com",
+                "listingMode": "AUTOMATIC",
+            }
+        }
+    },
 )
 ```
 
 ---
 
+## Calling Tools via MCP
+
+Gateway has no data-plane boto3 API and `GatewayClient` doesn't proxy tool calls - agents call gateway tools by speaking MCP over HTTP against `gw["gatewayUrl"]`, using the `mcp` package (or a framework's MCP client, e.g. Strands' `MCPClient`):
+
+```python
+from mcp import ClientSession
+from mcp.client.streamable_http import streamablehttp_client
+
+async def list_and_call(gateway_url: str, bearer_token: str):
+    async with streamablehttp_client(
+        gateway_url, headers={"Authorization": f"Bearer {bearer_token}"}
+    ) as (read, write, _):
+        async with ClientSession(read, write) as session:
+            await session.initialize()
+            tools = await session.list_tools()
+            result = await session.call_tool("process_order", {"order_id": "123"})
+            return tools, result
+```
+
+For an `authorizerType='AWS_IAM'` gateway, sign the HTTP request with SigV4 instead of a bearer token.
+
+---
+
 ## boto3 Alternative
+
+Only `bedrock-agentcore-control` (control plane) is real for gateway resource management - there is no `bedrock-agentcore-gateway` service, and Gateway has no data-plane boto3 API for invoking tools (that happens over MCP, above).
 
 ```python
 import boto3
 
-gateway = boto3.client('bedrock-agentcore-gateway')
+control_client = boto3.client('bedrock-agentcore-control', region_name='us-east-1')
 
-# Create gateway resource
-response = gateway.create_gateway_resource(
+# Create gateway
+response = control_client.create_gateway(
     name='my-api',
-    type='OPENAPI',
-    source={
-        'url': 'https://api.example.com/openapi.json'
-    }
+    roleArn='arn:aws:iam::123456789012:role/GatewayRole',
+    authorizerType='AWS_IAM',
+    protocolType='MCP',
 )
+gateway_id = response['gatewayId']
 
-# List tools
-tools = gateway.list_tools(gatewayResourceId=response['id'])
+# List gateways
+for gw in control_client.list_gateways(maxResults=50)['items']:
+    print(f"{gw['name']}: {gw['status']}")
 
-# Invoke tool
-result = gateway.invoke_tool(
-    gatewayResourceId=response['id'],
-    toolName='get_customer',
-    input={'customer_id': '123'}
-)
+# List targets on a gateway
+for target in control_client.list_gateway_targets(gatewayIdentifier=gateway_id)['items']:
+    print(f"{target['name']}: {target['status']}")
 ```
 
 ---
 
 ## Semantic Tool Discovery
 
-### Enable Indexing
+Semantic ranking is a gateway-level setting, not a separate indexing step - set `protocolConfiguration.mcp.searchType='SEMANTIC'` when creating (or updating) the gateway, and tool discovery through the standard MCP `tools/list` call is ranked by relevance:
 
 ```python
-# Index tools for semantic search
-gateway.index_tools(
-    gateway_resource_id="my-api",
-    enable_semantic_search=True
+gateway.update_gateway_and_wait(
+    gatewayIdentifier=gateway_id,
+    protocolConfiguration={"mcp": {"searchType": "SEMANTIC"}},
 )
 ```
 
-### Search Tools
-
-```python
-# Agent searches for relevant tools
-relevant_tools = gateway.search_tools(
-    query="get customer billing information",
-    limit=5
-)
-
-for tool in relevant_tools:
-    print(f"{tool.name} (score: {tool.relevance_score:.2f})")
-    print(f"  {tool.description}")
-```
+There is no separate `search_tools()` call - once semantic search is enabled, the standard MCP `tools/list` call (shown under [Calling Tools via MCP](#calling-tools-via-mcp) above) itself returns tools ranked by relevance.
 
 ### How It Works
 
@@ -215,114 +284,141 @@ for tool in relevant_tools:
 
 ## Authentication Patterns
 
-### OAuth 2.0 Flow
+Outbound authentication is attached to a *target* via `credentialProviderConfigurations`, referencing a credential provider created through [AgentCore Identity](identity.md) - it isn't an `auth=`/`enable_integration()` keyword on a gateway-creation call.
+
+### OAuth 2.0
 
 ```python
-# Gateway handles OAuth automatically for 1-click integrations
-tools = gateway.enable_integration(
-    name="salesforce",
-    config={
-        "instance_url": "https://mycompany.salesforce.com"
-    }
-)
+from bedrock_agentcore.identity.auth import IdentityClient
 
-# User completes OAuth flow once
-# Gateway stores and refreshes tokens automatically
+identity = IdentityClient(region="us-east-1")
+
+# Create the credential provider once (see AgentCore Identity for details)
+provider = identity.create_oauth2_credential_provider({
+    "name": "SalesforceProvider",
+    "credentialProviderVendor": "SalesforceOauth2",
+    "oauth2ProviderConfigInput": {
+        "salesforceOauth2ProviderConfig": {
+            "clientId": "your-client-id",
+            "clientSecret": "your-client-secret",
+        }
+    },
+})
+
+# Reference it from a target
+target = gateway.create_gateway_target_and_wait(
+    gatewayIdentifier=gateway_id,
+    name="SalesforceTools",
+    targetConfiguration={"mcp": {"openApiSchema": {"s3": {"uri": "s3://my-bucket/salesforce.yaml"}}}},
+    credentialProviderConfigurations=[
+        {
+            "credentialProviderType": "OAUTH",
+            "credentialProvider": {
+                "oauthCredentialProvider": {
+                    "providerArn": provider["credentialProviderArn"],
+                    "scopes": ["api"],
+                }
+            },
+        }
+    ],
+)
 ```
 
 ### API Key Authentication
 
 ```python
-# Configure API key auth
-tools = gateway.create_from_openapi(
+provider = identity.create_api_key_credential_provider({
+    "name": "MyApiKey",
+    "apiKey": "your-api-key",
+})
+
+target = gateway.create_gateway_target_and_wait(
+    gatewayIdentifier=gateway_id,
     name="my-api",
-    spec_url="https://api.example.com/openapi.json",
-    auth={
-        "type": "api_key",
-        "header": "X-API-Key",
-        "secret_arn": "arn:aws:secretsmanager:us-east-1:123456789:secret:my-api-key"
-    }
+    targetConfiguration={"mcp": {"openApiSchema": {"s3": {"uri": "s3://my-bucket/specs/my-api.yaml"}}}},
+    credentialProviderConfigurations=[
+        {
+            "credentialProviderType": "API_KEY",
+            "credentialProvider": {
+                "apiKeyCredentialProvider": {"providerArn": provider["credentialProviderArn"]}
+            },
+        }
+    ],
 )
 ```
 
 ### User-Level Credentials
 
-```python
-# Different credentials per user
-tools = gateway.create_from_openapi(
-    name="user-api",
-    spec_url="https://api.example.com/openapi.json",
-    auth={
-        "type": "user_credential",
-        "credential_type": "oauth2"
-    }
-)
-
-# Each user authenticates independently
-# Gateway manages credential per user_id
-```
+For per-user OAuth (each user authenticates independently and Gateway stores their token separately), use the `USER_FEDERATION` auth flow when the tool ultimately calls `requires_access_token` / `IdentityClient.get_token` - see [AgentCore Identity](identity.md) for the full pattern.
 
 ---
 
 ## Using Tools in Agents
 
+There is no `strands.tools.AgentCoreGatewayTools` or `langchain_agentcore.AgentCoreToolkit` package. Both frameworks connect the same way: an MCP client pointed at the gateway's URL.
+
 ### Strands Integration
+
+Strands has a built-in `MCPClient` over the `mcp` package's streamable-HTTP transport:
 
 ```python
 from strands import Agent
-from strands.tools import AgentCoreGatewayTools
+from strands.tools.mcp import MCPClient
+from mcp.client.streamable_http import streamablehttp_client
 
-# Load tools from Gateway
-tools = AgentCoreGatewayTools(
-    gateway_resource_ids=["my-api", "slack"]
-)
+def make_mcp_client(gateway_url: str, bearer_token: str) -> MCPClient:
+    return MCPClient(
+        lambda: streamablehttp_client(
+            gateway_url,
+            headers={"Authorization": f"Bearer {bearer_token}"},
+        )
+    )
 
-agent = Agent(
-    model=model,
-    tools=tools,
-    system_prompt="You are a helpful assistant."
-)
+mcp_client = make_mcp_client(gateway_url, bearer_token)
 
-response = agent.run("Send a Slack message to #general saying hello")
+with mcp_client:
+    tools = mcp_client.list_tools_sync()
+
+    agent = Agent(
+        model=model,
+        tools=tools,
+        system_prompt="You are a helpful assistant.",
+    )
+
+    response = agent("Send a Slack message to #general saying hello")
 ```
 
 ### LangGraph Integration
 
+Outside Strands, the raw `mcp` client SDK works the same way against any framework, including inside a LangGraph tool node:
+
 ```python
-from langchain_agentcore import AgentCoreToolkit
+from mcp import ClientSession
+from mcp.client.streamable_http import streamablehttp_client
 
-# Get tools as LangChain tools
-toolkit = AgentCoreToolkit(
-    gateway_resource_ids=["my-api"]
-)
-tools = toolkit.get_tools()
-
-# Use in graph
-workflow = StateGraph(AgentState)
-workflow.add_node("agent", create_agent_node(tools))
+async def list_gateway_tools(gateway_url: str, bearer_token: str):
+    async with streamablehttp_client(
+        gateway_url, headers={"Authorization": f"Bearer {bearer_token}"}
+    ) as (read, write, _):
+        async with ClientSession(read, write) as session:
+            await session.initialize()
+            return await session.list_tools()
 ```
 
 ---
 
 ## Policy Integration
 
-Gateway integrates with [AgentCore Policy](policy.md) for access control:
+Gateway integrates with [AgentCore Policy](policy.md) by attaching a policy engine to the gateway itself (`policyEngineConfiguration` on `UpdateGateway`) - there is no per-call `invoke_tool(user_id=...)` parameter, because Gateway has no data-plane boto3 API in the first place (see [Calling Tools via MCP](#calling-tools-via-mcp)):
 
 ```python
-# All requests through Gateway are evaluated against Policy
-# See Policy service for rule configuration
-
-# Example: Agent requests customer data
-result = gateway.invoke_tool(
-    gateway_resource_id="crm-api",
-    tool_name="get_customer",
-    input={"customer_id": "123"},
-    user_id="user-456"  # Used for policy evaluation
+control_client.update_gateway(
+    gatewayIdentifier=gateway_id,
+    policyEngineConfiguration={"arn": policy_engine_arn, "mode": "ENFORCE"},
 )
 
-# Policy evaluates:
-# - Can this user access customer data?
-# - Is this operation allowed for this agent?
+# Every MCP tool call through this gateway is now evaluated against the
+# attached policy engine before the target executes.
 ```
 
 ---
@@ -332,52 +428,50 @@ result = gateway.invoke_tool(
 ### 1. Organize Tools by Domain
 
 ```python
-# Group related tools
-crm_tools = gateway.create_from_openapi(
-    name="crm-tools",
-    spec_url="https://crm.example.com/openapi.json"
-)
-
-billing_tools = gateway.create_from_openapi(
-    name="billing-tools",
-    spec_url="https://billing.example.com/openapi.json"
-)
+# Group related tools under separate gateways
+crm_gateway = gateway.create_gateway_and_wait(name="crm-tools", roleArn=role_arn, protocolType="MCP")
+billing_gateway = gateway.create_gateway_and_wait(name="billing-tools", roleArn=role_arn, protocolType="MCP")
 ```
 
 ### 2. Use Descriptive Tool Names
 
 ```python
-# Good: Descriptive names
-tool = gateway.create_from_lambda(
-    name="get-customer-by-email",
-    description="Look up a customer record using their email address"
-)
+# Good: descriptive names and descriptions in the tool schema
+tool_schema = {
+    "name": "get_customer_by_email",
+    "description": "Look up a customer record using their email address",
+}
 
-# Bad: Vague names
-tool = gateway.create_from_lambda(
-    name="process",
-    description="Process something"
-)
+# Bad: vague names
+tool_schema = {
+    "name": "process",
+    "description": "Process something",
+}
 ```
 
 ### 3. Enable Semantic Search for Large Collections
 
 ```python
-# For 50+ tools, enable semantic search
-gateway.index_tools(
-    gateway_resource_id="my-api",
-    enable_semantic_search=True
+# For 50+ tools, enable semantic search at the gateway level
+gateway.update_gateway_and_wait(
+    gatewayIdentifier=gateway_id,
+    protocolConfiguration={"mcp": {"searchType": "SEMANTIC"}},
 )
 ```
 
 ### 4. Store Credentials Securely
 
+Credential material lives in a credential provider (created via [AgentCore Identity](identity.md)), referenced from the target by ARN - never inline in `targetConfiguration`:
+
 ```python
-# Use Secrets Manager for API keys
-auth={
-    "type": "api_key",
-    "secret_arn": "arn:aws:secretsmanager:..."  # Never hardcode
-}
+credential_provider_configurations = [
+    {
+        "credentialProviderType": "API_KEY",
+        "credentialProvider": {
+            "apiKeyCredentialProvider": {"providerArn": "arn:aws:bedrock-agentcore:..."}
+        },
+    }
+]
 ```
 
 ---

@@ -58,104 +58,113 @@ AgentCore Browser provides a managed browser runtime that enables AI agents to i
 
 ## Quick Start
 
-### Create Browser Session
+`BrowserClient` (`bedrock_agentcore.tools.browser_client`) manages session lifecycle only - it does not expose `navigate()`/`click()`/`fill()`/`screenshot()` methods itself. Automation happens by connecting a real browser-automation library (Playwright below) over CDP to the signed WebSocket URL the client hands you. The constructor takes `region` as a **positional** argument, not `region_name`.
+
+### Start a Session
 
 ```python
-from bedrock_agentcore.browser import BrowserClient
+from bedrock_agentcore.tools.browser_client import browser_session
 
-browser = BrowserClient()
-
-# Start session
-session = browser.create_session(
-    timeout_minutes=30,
-    viewport={"width": 1920, "height": 1080}
-)
-
-print(f"Session ID: {session.session_id}")
-print(f"Live View URL: {session.live_view_url}")
+# Context manager handles session lifecycle (start on enter, stop on exit)
+with browser_session("us-east-1", identifier="aws.browser.v1", name="my-session") as client:
+    # Automation and live-view WebSocket connections require SigV4-signed
+    # headers - generate_ws_headers() returns the URL and headers together.
+    ws_url, headers = client.generate_ws_headers()
+    print(f"Session ID: {client.session_id}")
 ```
 
-### Navigate and Interact
+### Navigate and Interact (via Playwright)
 
 ```python
-# Navigate to URL
-await session.navigate("https://example.com")
+from bedrock_agentcore.tools.browser_client import browser_session
+from playwright.sync_api import sync_playwright
 
-# Find and click element
-await session.click("button.submit")
+with browser_session("us-east-1", identifier="aws.browser.v1") as client:
+    ws_url, headers = client.generate_ws_headers()
 
-# Fill form
-await session.fill("input[name='email']", "user@example.com")
-await session.fill("input[name='password']", "password123")
+    with sync_playwright() as p:
+        browser = p.chromium.connect_over_cdp(ws_url, headers=headers)
+        page = browser.contexts[0].pages[0]
 
-# Take screenshot
-screenshot = await session.screenshot()
+        page.goto("https://example.com")
+        page.click("button.submit")
+        page.fill("input[name='email']", "user@example.com")
+        page.fill("input[name='password']", "password123")
+
+        screenshot = page.screenshot()
 ```
 
 ### Extract Data
 
 ```python
 # Get page content
-content = await session.get_content()
+content = page.content()
 
 # Execute JavaScript
-result = await session.evaluate("""
-    document.querySelectorAll('.product-price')
+result = page.evaluate("""
+    Array.from(document.querySelectorAll('.product-price'))
         .map(el => el.textContent)
 """)
 
 # Get all links
-links = await session.query_selector_all("a[href]")
+links = page.eval_on_selector_all("a[href]", "els => els.map(el => el.href)")
 ```
 
 ### Enable Recording
 
+Recording is configured on a **custom browser tool**, not per-session - the AWS managed `aws.browser.v1` tool never records:
+
 ```python
-# Create session with recording
-session = browser.create_session(
+import uuid
+from bedrock_agentcore.tools.browser_client import BrowserClient, browser_session
+
+client = BrowserClient("us-east-1")
+
+browser_tool = client.create_browser(
+    name="my-recording-browser",
+    description="Browser with session recording enabled",
+    network_configuration={"networkMode": "PUBLIC"},
     recording={
         "enabled": True,
-        "s3_bucket": "my-recordings-bucket",
-        "capture": ["dom", "actions", "network", "console"]
-    }
+        "s3Location": {"bucket": "my-recordings-bucket", "prefix": "sessions"},
+    },
+    execution_role_arn="arn:aws:iam::123456789012:role/BrowserRole",
+    client_token=str(uuid.uuid4()),
 )
 
-# ... do browser operations ...
-
-# Stop and save recording
-recording_url = await session.stop_recording()
+with browser_session("us-east-1", identifier=browser_tool["browserId"]) as recorded:
+    ws_url, headers = recorded.generate_ws_headers()
+    # ... do browser operations ...
+# Recording uploads to S3 when the session stops.
 ```
 
 ## Playwright Integration
 
 ```python
-from playwright.async_api import async_playwright
+from bedrock_agentcore.tools.browser_client import browser_session
+from playwright.sync_api import sync_playwright
 
-async with async_playwright() as p:
-    # Connect to AgentCore Browser
-    browser = await p.chromium.connect_over_cdp(
-        session.cdp_url
-    )
+with browser_session("us-east-1", identifier="aws.browser.v1") as client:
+    ws_url, headers = client.generate_ws_headers()
 
-    page = browser.pages[0]
-    await page.goto("https://example.com")
-    await page.click("button")
+    with sync_playwright() as p:
+        browser = p.chromium.connect_over_cdp(ws_url, headers=headers)
+        page = browser.contexts[0].pages[0]
+        page.goto("https://example.com")
+        page.click("button")
 ```
 
-## BrowserUse Integration
+## Other CDP-Compatible Frameworks
+
+Any framework that can attach to a remote Chromium instance over CDP (BrowserUse, Selenium, etc.), not just Playwright, can connect using the same signed WebSocket URL and headers returned by `generate_ws_headers()` - there is no separate per-framework AgentCore API. Consult the framework's own docs for how it accepts a CDP endpoint and headers:
 
 ```python
-from browser_use import Browser
+from bedrock_agentcore.tools.browser_client import browser_session
 
-# Configure to use AgentCore Browser
-browser = Browser(
-    endpoint=session.cdp_url
-)
-
-# Use with your agent
-result = await browser.run(
-    "Find the cheapest flight to New York"
-)
+with browser_session("us-east-1", identifier="aws.browser.v1") as client:
+    ws_url, headers = client.generate_ws_headers()
+    # Pass ws_url (+ headers, if the framework supports them) to whichever
+    # CDP-compatible automation library you're using.
 ```
 
 ## Use Cases

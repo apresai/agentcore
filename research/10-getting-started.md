@@ -364,24 +364,33 @@ The wizard prompts you to:
 
 This generates:
 
-- Agent code with your selected framework
+- Agent code with your selected framework, under `src/`
 - `.bedrock_agentcore.yaml` configuration file
-- `requirements.txt` with dependencies
-- Basic project structure
+- `pyproject.toml` with dependencies
+- A `test/` directory with a starter test
 
 ### Step 2: Explore the Generated Files
 
 After creation, your project structure looks like this:
 
 ```
-my-agent/
-├── agent.py              # Main agent code
-├── requirements.txt      # Python dependencies
+myagent/
+├── src/
+│   ├── main.py               # Main agent code
+│   ├── model/                # Model provider wiring
+│   └── mcp_client/           # MCP client helpers
+├── test/
+│   └── test_main.py          # Starter test
+├── pyproject.toml            # Dependencies
 ├── .bedrock_agentcore.yaml   # AgentCore configuration
-└── README.md             # Project documentation
+├── .gitignore
+└── README.md                 # Project documentation
 ```
 
-Examine the generated `agent.py`:
+Note the project name is alphanumeric only (no hyphens or underscores) and
+at most 36 characters; `agentcore create` rejects anything else.
+
+Examine the generated `src/main.py`:
 
 ```python
 from strands import Agent
@@ -853,7 +862,7 @@ This builds and runs entirely locally (requires Docker).
 Use an existing IAM role:
 
 ```bash
-agentcore configure -e agent.py --execution-role arn:aws:iam::123456789012:role/MyRole
+agentcore configure -e src/main.py --execution-role arn:aws:iam::123456789012:role/MyRole
 agentcore deploy
 ```
 

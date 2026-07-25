@@ -6,10 +6,10 @@
 
 | Command | Description |
 |---------|-------------|
-| `aws bedrock-agentcore create-code-interpreter` | Create a custom Code Interpreter resource |
-| `aws bedrock-agentcore list-code-interpreters` | List all Code Interpreter resources |
-| `aws bedrock-agentcore get-code-interpreter` | Get details of a Code Interpreter |
-| `aws bedrock-agentcore delete-code-interpreter` | Delete a Code Interpreter resource |
+| `aws bedrock-agentcore-control create-code-interpreter` | Create a custom Code Interpreter resource |
+| `aws bedrock-agentcore-control list-code-interpreters` | List all Code Interpreter resources |
+| `aws bedrock-agentcore-control get-code-interpreter` | Get details of a Code Interpreter |
+| `aws bedrock-agentcore-control delete-code-interpreter` | Delete a Code Interpreter resource |
 | `aws bedrock-agentcore start-code-interpreter-session` | Start an execution session |
 | `aws bedrock-agentcore stop-code-interpreter-session` | Stop an active session |
 
@@ -123,10 +123,10 @@ brew upgrade awscli  # macOS
 
 ### Create Code Interpreter
 
-Create a custom Code Interpreter resource with specific configuration:
+Create a custom Code Interpreter resource with specific configuration. This is a resource-management call, so it's on `bedrock-agentcore-control`, not `bedrock-agentcore`:
 
 ```bash
-aws bedrock-agentcore create-code-interpreter \
+aws bedrock-agentcore-control create-code-interpreter \
   --region us-east-1 \
   --name "data-analysis-interpreter" \
   --description "Code Interpreter for data analysis tasks" \
@@ -141,18 +141,18 @@ aws bedrock-agentcore create-code-interpreter \
 | `--name` | Yes | Unique name for the resource |
 | `--description` | No | Human-readable description |
 | `--network-configuration` | Yes | Network mode: `PUBLIC` or `SANDBOX` |
-| `--execution-role-arn` | Yes | IAM role for AWS resource access |
+| `--execution-role-arn` | No | IAM role for AWS resource access |
 
 ### List Code Interpreters
 
 ```bash
 # List all Code Interpreters
-aws bedrock-agentcore list-code-interpreters \
+aws bedrock-agentcore-control list-code-interpreters \
   --region us-east-1 \
   --max-results 10
 
 # With pagination
-aws bedrock-agentcore list-code-interpreters \
+aws bedrock-agentcore-control list-code-interpreters \
   --region us-east-1 \
   --max-results 10 \
   --next-token "eyJuZXh0VG9rZW4iOi..."
@@ -160,12 +160,13 @@ aws bedrock-agentcore list-code-interpreters \
 
 ### Start Session
 
+The flag is `--code-interpreter-identifier`, not `--code-interpreter-id`, and there is no `--description` flag on this command:
+
 ```bash
 aws bedrock-agentcore start-code-interpreter-session \
   --region us-east-1 \
-  --code-interpreter-id "aws.codeinterpreter.v1" \
+  --code-interpreter-identifier "aws.codeinterpreter.v1" \
   --name "analysis-session-001" \
-  --description "Data analysis session" \
   --session-timeout-seconds 3600
 ```
 
@@ -173,9 +174,8 @@ aws bedrock-agentcore start-code-interpreter-session \
 
 | Option | Required | Default | Description |
 |--------|----------|---------|-------------|
-| `--code-interpreter-id` | Yes | - | Resource ID or `aws.codeinterpreter.v1` |
-| `--name` | Yes | - | Session name |
-| `--description` | No | - | Session description |
+| `--code-interpreter-identifier` | Yes | - | Resource ID or `aws.codeinterpreter.v1` |
+| `--name` | No | - | Session name |
 | `--session-timeout-seconds` | No | 900 | Session duration (max 28800) |
 
 ### Stop Session
@@ -183,7 +183,7 @@ aws bedrock-agentcore start-code-interpreter-session \
 ```bash
 aws bedrock-agentcore stop-code-interpreter-session \
   --region us-east-1 \
-  --code-interpreter-id "aws.codeinterpreter.v1" \
+  --code-interpreter-identifier "aws.codeinterpreter.v1" \
   --session-id "session-abc123"
 ```
 
@@ -855,49 +855,31 @@ def handler(event, context):
 Deploy to AgentCore Runtime:
 
 ```bash
-agentcore create --name data-analyst-agent \
-  --handler agent_handler.handler \
-  --runtime python3.11 \
-  --memory 512 \
-  --timeout 300
+# agentcore create has no --name/--handler/--runtime/--timeout flags; project
+# name, framework, and entry point come from --project-name and interactive
+# prompts (or --non-interactive), not from a handler path. --memory takes
+# STM_ONLY/STM_AND_LTM/NO_MEMORY, not a byte size.
+agentcore create --project-name data-analyst-agent --agent-framework Strands --model-provider Bedrock
 
-agentcore deploy --name data-analyst-agent
+cd data-analyst-agent
+agentcore deploy --agent data-analyst-agent
 ```
 
 ### With AgentCore Gateway
 
 Expose Code Interpreter as an MCP tool through Gateway:
 
-```python
-# Define MCP tool schema
-tool_schema = {
-    "name": "execute_analysis",
-    "description": "Execute Python code for data analysis",
-    "input_schema": {
-        "type": "object",
-        "properties": {
-            "code": {
-                "type": "string",
-                "description": "Python code to execute"
-            },
-            "data": {
-                "type": "string",
-                "description": "Optional CSV data to analyze"
-            }
-        },
-        "required": ["code"]
-    }
-}
+`bedrock_agentcore.gateway` exports only `GatewayClient` - there is no `Gateway` class and no `@gateway.tool(...)` decorator. Gateway has no data-plane SDK of its own; exposing Code Interpreter as an MCP tool means wrapping it in a Lambda function and registering that Lambda as a Gateway target with an inline tool schema (see [AgentCore Gateway](./03-gateway.md#add-lambda-target)).
 
-# Gateway integration
-from bedrock_agentcore.gateway import Gateway
+```python
+# lambda_function.py - the handler Gateway invokes as a Lambda target.
 from bedrock_agentcore.tools.code_interpreter_client import code_session
 
-gateway = Gateway(region="us-east-1")
-
-@gateway.tool("execute_analysis")
-def execute_analysis(code: str, data: str = None) -> dict:
+def lambda_handler(event, context):
     """MCP tool for code execution."""
+    code = event["code"]
+    data = event.get("data")
+
     with code_session("us-east-1") as client:
         if data:
             client.invoke("writeFiles", {
@@ -910,13 +892,55 @@ def execute_analysis(code: str, data: str = None) -> dict:
         })
 
         output = []
-        for event in response["stream"]:
-            result = event.get("result", {})
+        for stream_event in response["stream"]:
+            result = stream_event.get("result", {})
             for content in result.get("content", []):
                 if content["type"] == "text":
                     output.append(content["text"])
 
         return {"output": "\n".join(output)}
+```
+
+```python
+# Register the Lambda as a Gateway target, describing the tool with an
+# inline MCP tool schema (camelCase inputSchema, not input_schema).
+from bedrock_agentcore.gateway import GatewayClient
+
+gateway = GatewayClient(region_name="us-east-1")
+
+target = gateway.create_gateway_target_and_wait(
+    gatewayIdentifier=gateway_id,
+    name="CodeInterpreterTools",
+    targetConfiguration={
+        "mcp": {
+            "lambda": {
+                "lambdaArn": "arn:aws:lambda:us-east-1:123456789012:function:execute-analysis",
+                "toolSchema": {
+                    "inlinePayload": [
+                        {
+                            "name": "execute_analysis",
+                            "description": "Execute Python code for data analysis",
+                            "inputSchema": {
+                                "type": "object",
+                                "properties": {
+                                    "code": {
+                                        "type": "string",
+                                        "description": "Python code to execute"
+                                    },
+                                    "data": {
+                                        "type": "string",
+                                        "description": "Optional CSV data to analyze"
+                                    }
+                                },
+                                "required": ["code"]
+                            }
+                        }
+                    ]
+                }
+            }
+        }
+    },
+)
 ```
 
 ---
@@ -999,20 +1023,20 @@ Match timeout to expected workload:
 ```python
 # Quick calculations: 5 minutes
 dp_client.start_code_interpreter_session(
+    codeInterpreterIdentifier="aws.codeinterpreter.v1",
     sessionTimeoutSeconds=300,
-    ...
 )
 
 # Data processing: 30 minutes
 dp_client.start_code_interpreter_session(
+    codeInterpreterIdentifier="aws.codeinterpreter.v1",
     sessionTimeoutSeconds=1800,
-    ...
 )
 
 # ML training: up to 8 hours
 dp_client.start_code_interpreter_session(
+    codeInterpreterIdentifier="aws.codeinterpreter.v1",
     sessionTimeoutSeconds=28800,
-    ...
 )
 ```
 
@@ -1213,7 +1237,7 @@ See [AgentCore Pricing](https://aws.amazon.com/bedrock/agentcore/pricing/) for c
 | [AgentCore Runtime](./01-runtime.md) | Deploy agents with Code Interpreter as serverless functions |
 | [AgentCore Gateway](./03-gateway.md) | Expose Code Interpreter as MCP tools |
 | [AgentCore Memory](./02-memory.md) | Persist analysis results across sessions |
-| [AgentCore Observability](./07-observability.md) | Monitor Code Interpreter execution |
+| [AgentCore Observability](./08-observability.md) | Monitor Code Interpreter execution |
 | [AgentCore Browser](./06-browser.md) | Combine with Browser for web data extraction |
 
 ### External Links
