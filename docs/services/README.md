@@ -33,7 +33,7 @@ AgentCore provides nine modular services that work independently or together.
 │                                   │                                 │
 │ OTEL-compatible tracing with      │ LLM-as-a-Judge quality          │
 │ CloudWatch dashboards and         │ assessment with custom          │
-│ step-by-step visualization        │ evaluators (GA)            │
+│ step-by-step visualization        │ evaluators (GA)                 │
 └───────────────────────────────────┴─────────────────────────────────┘
 
 ┌─────────────────────────────────────────────────────────────────────┐
@@ -42,7 +42,7 @@ AgentCore provides nine modular services that work independently or together.
 │                            Policy                                   │
 │                                                                     │
 │ Cedar-based deterministic access control with natural language      │
-│ policy authoring (GA)                                          │
+│ policy authoring (GA)                                               │
 └─────────────────────────────────────────────────────────────────────┘
 ```
 

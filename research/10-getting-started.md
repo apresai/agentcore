@@ -258,7 +258,7 @@ Enable foundation model access in the Amazon Bedrock console:
 
 ```bash
 mkdir my-agent-project
-cd myagentproject
+cd my-agent-project
 ```
 
 ### Step 2: Create Virtual Environment

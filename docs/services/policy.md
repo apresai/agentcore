@@ -2,7 +2,7 @@
 
 > Cedar-based deterministic access control for AI agents
 
-**Status: GA** (No charges during preview)
+**Status: GA** (generally available 2026-03-03)
 
 ## Overview
 

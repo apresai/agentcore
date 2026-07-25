@@ -117,10 +117,14 @@ control.update_gateway(
 )
 print("✓ Policy engine attached to gateway (LOG_ONLY mode)")
 
-# After validating decisions in CloudWatch, switch to enforcement:
+# After validating decisions in CloudWatch, switch to enforcement.
+# Re-read the gateway first, exactly as above, and carry
+# authorizerConfiguration through when the gateway has one:
 # control.update_gateway(
 #     gatewayIdentifier='gw-abc123',
 #     name=gw['name'], roleArn=gw['roleArn'], authorizerType=gw['authorizerType'],
+#     **({'authorizerConfiguration': gw['authorizerConfiguration']}
+#        if gw.get('authorizerConfiguration') else {}),
 #     policyEngineConfiguration={
 #         'arn': engine['policyEngineArn'],
 #         'mode': 'ENFORCE'
