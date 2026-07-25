@@ -1185,15 +1185,22 @@ Gateway charges per operation. Batch when possible.
 
 **Example:**
 ```python
-# Before: Frequent ListTools calls
-for task in tasks:
-    tools = gateway.list_tools()  # $0.000005 each
-    result = gateway.invoke_tool(tools[0], task)
+# Tool listing and invocation happen over MCP against the gateway's endpoint,
+# not on GatewayClient (which manages resources only).
 
-# After: Cache tool list
-tools = gateway.list_tools()  # Once
+# Before: a ListTools round trip per task
 for task in tasks:
-    result = gateway.invoke_tool(tools[0], task)
+    with mcp_client:
+        tools = mcp_client.list_tools_sync()   # billed per call
+        agent = Agent(tools=tools)
+        result = agent(task)
+
+# After: list once, reuse for every task
+with mcp_client:
+    tools = mcp_client.list_tools_sync()       # once
+    agent = Agent(tools=tools)
+    for task in tasks:
+        result = agent(task)
 ```
 
 ---
