@@ -266,7 +266,7 @@ Security features designed for regulated industries:
 pip install bedrock-agentcore bedrock-agentcore-starter-toolkit strands-agents
 
 # Create your agent
-agentcore create --project-name my-first-agent
+agentcore create --project-name myfirstagent
 
 # Test locally
 agentcore dev

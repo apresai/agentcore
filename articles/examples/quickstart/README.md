@@ -82,7 +82,7 @@ After deploying your first agent:
 
 2. **Connect Tools** via Gateway:
    ```bash
-   agentcore gateway create-mcp-gateway --name my-gateway
+   agentcore gateway create-mcp-gateway --name mygateway
    ```
 
 3. **View Logs** in CloudWatch:

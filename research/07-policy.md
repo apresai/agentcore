@@ -472,8 +472,15 @@ client.delete_policy_engine(
 The field is `gatewayIdentifier` (not `gatewayId`), and `policyEngineConfiguration` uses `arn`/`mode` (not `policyEngineArn`/`enforcementMode`).
 
 ```python
+# UpdateGateway is not a sparse patch: name, roleArn and authorizerType are
+# required on every call, so read the current configuration back first.
+gw = client.get_gateway(gatewayIdentifier='gw-abc123')
+
 response = client.update_gateway(
     gatewayIdentifier='gw-abc123',
+    name=gw['name'],
+    roleArn=gw['roleArn'],
+    authorizerType=gw['authorizerType'],
     policyEngineConfiguration={
         'arn': 'arn:aws:bedrock-agentcore:us-east-1:123456789012:policy-engine/pe-abc123xyz',
         'mode': 'ENFORCE'  # or 'LOG_ONLY'
@@ -1422,8 +1429,13 @@ def switch_enforcement_mode(gateway_id: str, engine_arn: str, mode: str):
     """Switch between ENFORCE and LOG_ONLY modes."""
     client = boto3.client('bedrock-agentcore-control', region_name='us-east-1')
 
+    # UpdateGateway requires name, roleArn and authorizerType on every call.
+    gw = client.get_gateway(gatewayIdentifier=gateway_id)
     response = client.update_gateway(
         gatewayIdentifier=gateway_id,
+        name=gw['name'],
+        roleArn=gw['roleArn'],
+        authorizerType=gw['authorizerType'],
         policyEngineConfiguration={
             'arn': engine_arn,
             'mode': mode

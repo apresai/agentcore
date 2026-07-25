@@ -108,13 +108,13 @@ agentcore create [OPTIONS]
 agentcore create
 
 # Create a Strands agent with Bedrock
-agentcore create --project-name my-agent --agent-framework Strands --model-provider Bedrock
+agentcore create --project-name myagent --agent-framework Strands --model-provider Bedrock
 
 # Create with Terraform instead of CDK
-agentcore create --project-name my-agent --agent-framework LangChain_LangGraph --iac Terraform
+agentcore create --project-name myagent --agent-framework LangChain_LangGraph --iac Terraform
 
 # Create with short-term + long-term memory, non-interactively
-agentcore create --project-name my-agent --memory STM_AND_LTM --non-interactive
+agentcore create --project-name myagent --memory STM_AND_LTM --non-interactive
 ```
 
 `agentcore create import` can also generate an AgentCore project from an existing Amazon Bedrock Agent.
@@ -148,7 +148,7 @@ There is no `--host`, `--reload`, or `--watch` flag; the dev server always binds
 
 ### agentcore deploy
 
-Deploy the agent to AgentCore Runtime. (Formerly `agentcore launch`; that command name no longer exists.)
+Deploy the agent to AgentCore Runtime. (Formerly `agentcore launch`. That name still resolves as a hidden alias, but `deploy` is the documented command and the one to use.)
 
 ```bash
 agentcore deploy [OPTIONS]
@@ -829,7 +829,7 @@ async def main(request):
 
 ```bash
 # Check agent status
-agentcore status --agent my-agent
+agentcore status --agent myagent
 
 # List recent traces for the last invoked session (or --session-id / --agent)
 agentcore obs list

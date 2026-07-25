@@ -50,7 +50,7 @@ This is the moment your agent hitches a ride off the planet. Wrap your existing 
 
 ```bash
 pip install bedrock-agentcore bedrock-agentcore-starter-toolkit
-agentcore create --agent-framework Strands --model-provider Bedrock --project-name support-agent
+agentcore create --agent-framework Strands --model-provider Bedrock --project-name supportagent
 agentcore dev                          # test locally
 agentcore invoke --dev '{"prompt": "What is order ORD-12345?"}'
 agentcore deploy                       # deploy to Runtime

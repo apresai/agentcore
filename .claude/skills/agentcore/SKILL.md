@@ -204,7 +204,18 @@ gateway = GatewayClient(region_name="us-east-1")
 # Create a gateway and attach targets. The *_and_wait helpers block until the
 # resource reaches a terminal state. create_gateway_and_wait passes its
 # arguments through as **kwargs to the underlying control-plane call.
-gw = gateway.create_gateway_and_wait(name="my-gateway")
+# CreateGateway requires name, roleArn and authorizerType together.
+gw = gateway.create_gateway_and_wait(
+    name="my-gateway",
+    roleArn="arn:aws:iam::123456789012:role/AgentCoreGatewayRole",
+    authorizerType="CUSTOM_JWT",
+    authorizerConfiguration={
+        "customJWTAuthorizer": {
+            "discoveryUrl": "https://your-idp/.well-known/openid-configuration",
+            "allowedClients": ["your-client-id"],
+        }
+    },
+)
 target = gateway.create_knowledge_base_target(
     gateway_identifier=gw["gatewayId"],
     knowledge_base_id="my-kb-id",
@@ -219,7 +230,7 @@ target = gateway.create_knowledge_base_target(
 
 ```bash
 # 1. Create project
-agentcore create --project-name my-agent --agent-framework Strands --model-provider Bedrock
+agentcore create --project-name myagent --agent-framework Strands --model-provider Bedrock
 
 # 2. Develop locally
 cd my-agent
@@ -433,7 +444,7 @@ Before declaring a long-running agent "production ready":
 
 ```bash
 # Check agent status
-agentcore status --agent my-agent
+agentcore status --agent myagent
 
 # View CloudWatch logs (log group includes the endpoint name)
 aws logs tail /aws/bedrock-agentcore/runtimes/<agent_id>-<endpoint_name> --follow

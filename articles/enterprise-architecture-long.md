@@ -1018,8 +1018,13 @@ POLICY_ENGINE_ID = engine["policyEngineId"]
 POLICY_ENGINE_ARN = engine["policyEngineArn"]
 
 # Attach policy engine to the enterprise gateway
+# UpdateGateway requires name, roleArn and authorizerType on every call.
+gw = control.get_gateway(gatewayIdentifier=GATEWAY_ID)
 control.update_gateway(
     gatewayIdentifier=GATEWAY_ID,
+    name=gw["name"],
+    roleArn=gw["roleArn"],
+    authorizerType=gw["authorizerType"],
     policyEngineConfiguration={
         "arn": POLICY_ENGINE_ARN,
         "mode": "ENFORCE",
@@ -1752,7 +1757,7 @@ Deploy and invoke:
 
 ```bash
 # Deploy the agent
-agentcore deploy --agent enterprise-support-agent
+agentcore deploy --agent enterprisesupportagent
 
 # Invoke with a customer request
 agentcore invoke '{
@@ -1981,8 +1986,13 @@ def test_policy_rollout(gateway_id: str, engine_arn: str, test_cases: list, bear
 
     # Step 1: Switch to LOG_ONLY
     print("Switching to LOG_ONLY mode...")
+    # UpdateGateway requires name, roleArn and authorizerType on every call.
+    gw = control.get_gateway(gatewayIdentifier=gateway_id)
     control.update_gateway(
         gatewayIdentifier=gateway_id,
+        name=gw["name"],
+        roleArn=gw["roleArn"],
+        authorizerType=gw["authorizerType"],
         policyEngineConfiguration={
             "arn": engine_arn,
             "mode": "LOG_ONLY",
@@ -2014,8 +2024,13 @@ def test_policy_rollout(gateway_id: str, engine_arn: str, test_cases: list, bear
     all_passed = all(r["passed"] for r in results)
     if all_passed:
         print(f"\nAll {len(results)} tests passed. Switching to ENFORCE mode...")
+        # UpdateGateway requires name, roleArn and authorizerType on every call.
+        gw = control.get_gateway(gatewayIdentifier=gateway_id)
         control.update_gateway(
             gatewayIdentifier=gateway_id,
+            name=gw["name"],
+            roleArn=gw["roleArn"],
+            authorizerType=gw["authorizerType"],
             policyEngineConfiguration={
                 "arn": engine_arn,
                 "mode": "ENFORCE",

@@ -18,7 +18,7 @@ No containers. No Kubernetes. No infrastructure headaches. If *The Hitchhiker's 
 pip install bedrock-agentcore bedrock-agentcore-starter-toolkit strands-agents
 
 # 2. Create a new agent project
-agentcore create --project-name my-first-agent
+agentcore create --project-name myfirstagent
 
 # 3. Deploy to AWS
 cd my-first-agent

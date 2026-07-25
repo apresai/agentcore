@@ -931,7 +931,7 @@ New AWS customers receive up to $200 in Free Tier credits for AgentCore.
 
 3. **Create your first agent**:
    ```bash
-   agentcore create --project-name my-first-agent
+   agentcore create --project-name myfirstagent
    ```
 
 4. **Deploy to AgentCore**:

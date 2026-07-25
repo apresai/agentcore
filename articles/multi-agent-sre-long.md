@@ -384,8 +384,8 @@ if __name__ == "__main__":
 Deploy with the 8-hour max session lifetime for extended incidents:
 
 ```bash
-agentcore configure --name sre-assistant --max-lifetime 28800
-agentcore deploy --agent sre-assistant
+agentcore configure --name sreassistant --max-lifetime 28800
+agentcore deploy --agent sreassistant
 ```
 
 ### Step 5: Run It

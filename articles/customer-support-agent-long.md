@@ -309,7 +309,7 @@ if __name__ == "__main__":
 Deploy with the CLI:
 
 ```bash
-agentcore deploy --agent customer-support-agent
+agentcore deploy --agent customersupportagent
 ```
 
 ### Step 8: Run It

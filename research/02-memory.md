@@ -735,7 +735,7 @@ def chat_with_memory(user_id: str, session_id: str, message: str) -> str:
     )
 
     # Get agent response using the retrieved history as context
-    response = agent.chat(turns)
+    response = agent(turns)
 
     # Store the exchange - messages are (text, role) tuples
     memory_client.create_event(
@@ -802,7 +802,7 @@ def personalized_chat(user_id: str, session_id: str, message: str) -> str:
 Use this context to provide personalized responses."""
 
     # Generate response
-    response = agent.chat(
+    response = agent(
         messages=[{"role": "user", "content": message}],
         system_prompt=system_prompt
     )

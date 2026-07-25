@@ -100,9 +100,15 @@ print("✓ Policy created: absolute ceiling ($10,000)")
 ### Attach Policy Engine to Gateway
 
 ```python
-# Attach to your existing gateway — start with LOG_ONLY to test
+# Attach to your existing gateway — start with LOG_ONLY to test.
+# UpdateGateway is not a sparse patch: name, roleArn and authorizerType are
+# required on every call, so read the current configuration back first.
+gw = control.get_gateway(gatewayIdentifier='gw-abc123')
 control.update_gateway(
     gatewayIdentifier='gw-abc123',
+    name=gw['name'],
+    roleArn=gw['roleArn'],
+    authorizerType=gw['authorizerType'],
     policyEngineConfiguration={
         'arn': engine['policyEngineArn'],
         'mode': 'LOG_ONLY'  # Test first, then switch to ENFORCE
@@ -113,6 +119,7 @@ print("✓ Policy engine attached to gateway (LOG_ONLY mode)")
 # After validating decisions in CloudWatch, switch to enforcement:
 # control.update_gateway(
 #     gatewayIdentifier='gw-abc123',
+#     name=gw['name'], roleArn=gw['roleArn'], authorizerType=gw['authorizerType'],
 #     policyEngineConfiguration={
 #         'arn': engine['policyEngineArn'],
 #         'mode': 'ENFORCE'

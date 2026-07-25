@@ -149,7 +149,7 @@ if __name__ == "__main__":
 
 ```bash
 # Scaffold a LangGraph project
-agentcore create --agent-framework LangChain_LangGraph --model-provider Bedrock --project-name research-agent
+agentcore create --agent-framework LangChain_LangGraph --model-provider Bedrock --project-name researchagent
 
 # Test locally before deploying
 agentcore dev
@@ -158,8 +158,8 @@ agentcore dev
 agentcore invoke --dev '{"prompt": "Explain graph-based agent architectures"}'
 
 # Set the 8-hour max session lifetime, then deploy to AgentCore Runtime
-agentcore configure --name research-agent --max-lifetime 28800
-agentcore deploy --agent research-agent
+agentcore configure --name researchagent --max-lifetime 28800
+agentcore deploy --agent researchagent
 
 # Invoke the deployed agent
 agentcore invoke '{"prompt": "Compare ReAct vs plan-and-execute patterns"}'
@@ -168,7 +168,7 @@ agentcore invoke '{"prompt": "Compare ReAct vs plan-and-execute patterns"}'
 agentcore invoke --session-id sess-001 '{"prompt": "Go deeper on plan-and-execute"}'
 
 # Check deployment status
-agentcore status --agent research-agent
+agentcore status --agent researchagent
 ```
 
 ### Create Memory for Cross-Session Persistence
@@ -181,6 +181,8 @@ control = boto3.client('bedrock-agentcore-control', region_name='us-east-1')
 # Create memory with research-oriented strategies
 response = control.create_memory(
     name='LangGraphAgentMemory',
+    # eventExpiryDuration is required by CreateMemory (days short-term events persist)
+    eventExpiryDuration=30,
     memoryStrategies=[
         {
             'summaryMemoryStrategy': {

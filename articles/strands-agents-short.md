@@ -53,7 +53,7 @@ if __name__ == "__main__":
 Three commands. That is it. Ford would approve -- he always said the best technology is the kind you do not have to think about, like a really good towel.
 
 ```bash
-agentcore create --agent-framework Strands --project-name my-agent --memory STM_AND_LTM
+agentcore create --agent-framework Strands --project-name myagent --memory STM_AND_LTM
 agentcore deploy
 agentcore invoke '{"prompt": "What tools do you have?"}'
 ```

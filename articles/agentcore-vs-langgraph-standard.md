@@ -37,7 +37,7 @@ Plus: Dockerfile, task-def.json, network.json, IAM roles, security groups, healt
 ### LangGraph on AgentCore
 
 ```bash
-agentcore create --agent-framework LangChain_LangGraph --model-provider Bedrock --project-name my-agent
+agentcore create --agent-framework LangChain_LangGraph --model-provider Bedrock --project-name myagent
 agentcore deploy
 agentcore invoke '{"prompt": "Analyze Q4 revenue trends"}'
 ```

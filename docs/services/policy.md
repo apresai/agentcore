@@ -138,23 +138,33 @@ policy.create_or_get_policy(
 There is no `policy.test()` method - test by attaching the engine to the gateway in `LOG_ONLY` mode, calling the gateway's tools for real, and checking the responses, then flip to `ENFORCE` once satisfied:
 
 ```python
+def set_policy_mode(control_client, gateway_id: str, engine_arn: str, mode: str):
+    """UpdateGateway is not a sparse patch: name, roleArn and authorizerType are
+    required on every call, so read the current configuration back first."""
+    gw = control_client.get_gateway(gatewayIdentifier=gateway_id)
+    kwargs = {
+        "gatewayIdentifier": gateway_id,
+        "name": gw["name"],
+        "roleArn": gw["roleArn"],
+        "authorizerType": gw["authorizerType"],
+        "policyEngineConfiguration": {"arn": engine_arn, "mode": mode},
+    }
+    if gw.get("authorizerConfiguration"):
+        kwargs["authorizerConfiguration"] = gw["authorizerConfiguration"]
+    return control_client.update_gateway(**kwargs)
+
+
 import boto3
 
 control_client = boto3.client('bedrock-agentcore-control', region_name='us-east-1')
 
 # Attach in LOG_ONLY mode - decisions are logged but never block a call
-control_client.update_gateway(
-    gatewayIdentifier="gw-abc123",
-    policyEngineConfiguration={"arn": engine["policyEngineArn"], "mode": "LOG_ONLY"},
-)
+set_policy_mode(control_client, "gw-abc123", engine["policyEngineArn"], "LOG_ONLY")
 
 # ... call the gateway's tools over MCP and check the responses ...
 
 # Once satisfied, switch to enforcement
-control_client.update_gateway(
-    gatewayIdentifier="gw-abc123",
-    policyEngineConfiguration={"arn": engine["policyEngineArn"], "mode": "ENFORCE"},
-)
+set_policy_mode(control_client, "gw-abc123", engine["policyEngineArn"], "ENFORCE")
 ```
 
 ## Cedar Policy Examples
@@ -240,10 +250,7 @@ Output:
 Once a policy engine is attached in `ENFORCE` mode, every MCP tool call through that gateway is evaluated automatically - there is no per-call opt-in and, since Gateway has no data-plane boto3 API, no `gateway.invoke_tool()` call to attach the policy to in the first place (see [AgentCore Gateway](gateway.md)). Denied calls come back as MCP errors to the caller:
 
 ```python
-control_client.update_gateway(
-    gatewayIdentifier="gw-abc123",
-    policyEngineConfiguration={"arn": engine["policyEngineArn"], "mode": "ENFORCE"},
-)
+set_policy_mode(control_client, "gw-abc123", engine["policyEngineArn"], "ENFORCE")
 
 # Every subsequent call_tool() over MCP against this gateway is now
 # evaluated against the attached policy engine before the target executes.

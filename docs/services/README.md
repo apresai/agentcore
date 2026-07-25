@@ -33,7 +33,7 @@ AgentCore provides nine modular services that work independently or together.
 │                                   │                                 │
 │ OTEL-compatible tracing with      │ LLM-as-a-Judge quality          │
 │ CloudWatch dashboards and         │ assessment with custom          │
-│ step-by-step visualization        │ evaluators (Preview)            │
+│ step-by-step visualization        │ evaluators (GA)                    │
 └───────────────────────────────────┴─────────────────────────────────┘
 
 ┌─────────────────────────────────────────────────────────────────────┐
@@ -42,7 +42,7 @@ AgentCore provides nine modular services that work independently or together.
 │                            Policy                                   │
 │                                                                     │
 │ Cedar-based deterministic access control with natural language      │
-│ policy authoring (Preview)                                          │
+│ policy authoring (GA)                                               │
 └─────────────────────────────────────────────────────────────────────┘
 ```
 
@@ -59,8 +59,8 @@ AgentCore provides nine modular services that work independently or together.
 | [Code Interpreter](code-interpreter.md) | Run code | 5GB file support | GA |
 | [Browser](browser.md) | Automate web | Session recording | GA |
 | [Observability](observability.md) | Monitor agents | OTEL traces | GA |
-| [Evaluations](evaluations.md) | Assess quality | LLM-as-Judge | Preview |
-| [Policy](policy.md) | Control access | Cedar rules | Preview |
+| [Evaluations](evaluations.md) | Assess quality | LLM-as-Judge | GA |
+| [Policy](policy.md) | Control access | Cedar rules | GA |
 
 ---
 
@@ -203,7 +203,7 @@ Every user session runs in a dedicated microVM with isolated CPU, memory, and fi
 
 ---
 
-### Evaluations (Preview)
+### Evaluations (GA)
 
 **Automated quality assessment using LLM-as-a-Judge**
 
@@ -220,7 +220,7 @@ Every user session runs in a dedicated microVM with isolated CPU, memory, and fi
 
 ---
 
-### Policy (Preview)
+### Policy (GA)
 
 **Cedar-based deterministic access control**
 

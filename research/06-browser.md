@@ -1189,7 +1189,7 @@ if __name__ == '__main__':
 Agent name, entrypoint, memory, and timeout come from `agentcore configure` (or the generated `.bedrock_agentcore.yaml`), not from flags on `deploy` — `agentcore deploy` itself only takes `--agent`, `--local`, `--local-build`, `--image-tag`, `--auto-update-on-conflict`, `--force-rebuild-deps`, and `--env`.
 
 ```bash
-agentcore configure -e agent.py --name web-research-agent
+agentcore configure -e src/main.py --name webresearchagent
 agentcore deploy
 ```
 

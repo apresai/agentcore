@@ -859,10 +859,10 @@ Deploy to AgentCore Runtime:
 # name, framework, and entry point come from --project-name and interactive
 # prompts (or --non-interactive), not from a handler path. --memory takes
 # STM_ONLY/STM_AND_LTM/NO_MEMORY, not a byte size.
-agentcore create --project-name data-analyst-agent --agent-framework Strands --model-provider Bedrock
+agentcore create --project-name dataanalystagent --agent-framework Strands --model-provider Bedrock
 
 cd data-analyst-agent
-agentcore deploy --agent data-analyst-agent
+agentcore deploy --agent dataanalystagent
 ```
 
 ### With AgentCore Gateway

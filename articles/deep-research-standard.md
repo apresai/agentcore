@@ -117,8 +117,8 @@ if __name__ == "__main__":
 
 ```bash
 # Set the 8-hour max session lifetime, then deploy to AgentCore Runtime
-agentcore configure --name deep-research-agent --max-lifetime 28800
-agentcore deploy --agent deep-research-agent
+agentcore configure --name deepresearchagent --max-lifetime 28800
+agentcore deploy --agent deepresearchagent
 ```
 
 ### Invoke Asynchronously and Poll for Results
