@@ -134,7 +134,7 @@ from bedrock_agentcore.runtime import BedrockAgentCoreApp
 
 # Initialize model
 model = BedrockModel(
-    model_id="anthropic.claude-sonnet-4-6",
+    model_id="us.anthropic.claude-haiku-4-5-20251001-v1:0",
     region_name="us-east-1"
 )
 
@@ -454,7 +454,7 @@ agentcore invoke --debug '{"prompt": "test"}'
 ### Supported Models
 
 - Amazon Bedrock: Claude, Nova, Llama, Mistral
-- OpenAI: GPT-4, GPT-4o
+- OpenAI: GPT-5.5 and earlier GPT models
 - Anthropic: Claude (direct API)
 - Google: Gemini
 - Self-hosted models

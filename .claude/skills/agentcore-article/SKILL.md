@@ -153,10 +153,10 @@ Based on format, plan the code:
 
 **SDK options to demonstrate:**
 ```python
-# Option 1: AgentCore SDK (recommended)
-from agentcore import AgentCoreClient
+# Option 1: AgentCore Python SDK (agent-side; pip install bedrock-agentcore)
+from bedrock_agentcore.runtime import BedrockAgentCoreApp
 
-# Option 2: boto3 (lower-level)
+# Option 2: boto3 (control/data plane operations)
 import boto3
 client = boto3.client('bedrock-agentcore')
 ```
@@ -327,14 +327,14 @@ Expected output:
 
 - AWS account with Bedrock AgentCore access
 - [Language] [version] installed
-- AgentCore CLI (`pip install agentcore-cli`)
+- AgentCore CLI (`pip install bedrock-agentcore-starter-toolkit`)
 - Required packages listed in `requirements.txt`
 
 ## Environment Setup
 
 ```bash
 # Install dependencies
-pip install agentcore-sdk boto3
+pip install bedrock-agentcore boto3
 
 # Set environment variables
 export AWS_REGION=us-east-1
@@ -431,7 +431,7 @@ Expected output:
 
 ```bash
 # requirements.txt
-agentcore-sdk>=1.0.0
+bedrock-agentcore
 boto3>=1.34.0
 python-dotenv>=1.0.0
 ```
@@ -590,7 +590,7 @@ articles/examples/[feature]/
 # AgentCore [Feature] Example
 # https://docs.aws.amazon.com/bedrock-agentcore/
 
-agentcore-sdk>=1.0.0
+bedrock-agentcore
 boto3>=1.34.0
 python-dotenv>=1.0.0
 ```
@@ -678,15 +678,17 @@ from dotenv import load_dotenv
 # Load environment variables
 load_dotenv()
 
-# Option 1: AgentCore SDK (Recommended)
-from agentcore import AgentCoreClient
+# AgentCore via boto3 (data plane client; agent-side code uses
+# `from bedrock_agentcore.runtime import BedrockAgentCoreApp` instead)
+import boto3
 
 def main():
     """Main function demonstrating [Feature]."""
 
     # Initialize client
-    client = AgentCoreClient(
-        region=os.getenv("AWS_REGION", "us-east-1")
+    client = boto3.client(
+        "bedrock-agentcore",
+        region_name=os.getenv("AWS_REGION", "us-east-1")
     )
     print("✓ AgentCore client initialized")
 
@@ -845,6 +847,8 @@ Proceeding to Step 7: Save and Deliver
 | Policy | `research/07-policy.md` |
 | Observability | `research/08-observability.md` |
 | Evaluations | `research/09-evaluations.md` |
+| Getting Started | `research/10-getting-started.md` |
+| Pricing | `research/11-pricing.md` |
 
 ## Documentation Links
 
