@@ -34,9 +34,9 @@ Help users build, deploy, and troubleshoot AI agents with AWS Bedrock AgentCore.
 pip install bedrock-agentcore-starter-toolkit
 
 # Core commands
-agentcore create [--framework strands|langgraph|openai|google] [--model-provider bedrock|openai|anthropic|google]
+agentcore create [--project-name NAME] [--agent-framework Strands|LangChain_LangGraph|GoogleADK|OpenAIAgents|...] [--model-provider Bedrock|OpenAI|...]
 agentcore dev [--port 8080]              # Local development server
-agentcore deploy [--region us-east-1]    # Deploy to Runtime
+agentcore deploy [--local|--local-build] # Deploy to Runtime (region comes from AWS config)
 agentcore invoke '{"prompt": "..."}'     # Invoke agent
 agentcore status                         # Check deployment
 agentcore destroy                        # Remove agent
@@ -147,7 +147,7 @@ agent = Agent(
 # AgentCore Runtime wrapper
 app = BedrockAgentCoreApp()
 
-@app.entrypoint()
+@app.entrypoint
 async def main(request):
     prompt = request.get("prompt", "")
     response = agent(prompt)
@@ -162,21 +162,26 @@ if __name__ == "__main__":
 ```python
 from bedrock_agentcore.memory import MemoryClient
 
-memory = MemoryClient(memory_id="my-memory-id")
+# The client is region-scoped; the memory resource is named per call.
+memory = MemoryClient(region_name="us-east-1")
 
-# Store interaction
+# Store interaction. messages are (text, role) TUPLES, not dicts.
 memory.create_event(
+    memory_id="my-memory-id",
+    actor_id="user-alice",
     session_id="session-123",
     messages=[
-        {"role": "user", "content": "My name is Alice"},
-        {"role": "assistant", "content": "Hello Alice!"}
-    ]
+        ("My name is Alice", "USER"),
+        ("Hello Alice!", "ASSISTANT"),
+    ],
 )
 
-# Retrieve relevant memories
+# Retrieve relevant memories (there is no session_id arg; namespace is optional)
 memories = memory.retrieve_memories(
-    session_id="session-123",
-    query="What is my name?"
+    memory_id="my-memory-id",
+    namespace="/facts/user-alice",
+    query="What is my name?",
+    top_k=3,
 )
 ```
 
@@ -185,23 +190,28 @@ memories = memory.retrieve_memories(
 ```python
 from bedrock_agentcore.gateway import GatewayClient
 
-gateway = GatewayClient(gateway_id="my-gateway-id")
+# The client is region-scoped; gateways are addressed per call.
+gateway = GatewayClient(region_name="us-east-1")
 
-# List available tools
-tools = gateway.list_tools()
-
-# Call a tool
-result = gateway.call_tool(
-    tool_name="get_weather",
-    arguments={"city": "Seattle"}
+# Create a gateway and attach targets. The *_and_wait helpers block until the
+# resource reaches a terminal state. create_gateway_and_wait passes its
+# arguments through as **kwargs to the underlying control-plane call.
+gw = gateway.create_gateway_and_wait(name="my-gateway")
+target = gateway.create_knowledge_base_target(
+    gateway_identifier=gw["gatewayId"],
+    knowledge_base_id="my-kb-id",
+    name="docs-kb",
 )
+
+# Gateways expose their targets to agents over MCP; the client manages the
+# gateway, it does not proxy individual tool calls.
 ```
 
 ### Deployment Workflow
 
 ```bash
 # 1. Create project
-agentcore create --framework strands --model-provider bedrock --name my-agent
+agentcore create --project-name my-agent --agent-framework Strands --model-provider Bedrock
 
 # 2. Develop locally
 cd my-agent
@@ -210,8 +220,8 @@ agentcore dev
 # 3. Test locally
 agentcore invoke --dev '{"prompt": "Hello!"}'
 
-# 4. Deploy to AWS
-agentcore deploy --region us-east-1
+# 4. Deploy to AWS (region comes from your AWS config/AWS_REGION)
+agentcore deploy
 
 # 5. Invoke in production
 agentcore invoke '{"prompt": "Hello!"}'
@@ -415,7 +425,7 @@ Before declaring a long-running agent "production ready":
 
 ```bash
 # Check agent status
-agentcore status --name my-agent
+agentcore status --agent my-agent
 
 # View CloudWatch logs
 aws logs tail /aws/bedrock-agentcore/runtimes/<agent_id> --follow
@@ -423,8 +433,8 @@ aws logs tail /aws/bedrock-agentcore/runtimes/<agent_id> --follow
 # Test locally with verbose logging
 AGENTCORE_LOG_LEVEL=DEBUG agentcore dev
 
-# Invoke with debug output
-agentcore invoke --debug '{"prompt": "test"}'
+# Invoke (there is no --debug flag)
+agentcore invoke '{"prompt": "test"}'
 ```
 
 ---
