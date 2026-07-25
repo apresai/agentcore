@@ -17,11 +17,11 @@ Prerequisites:
 
 Usage:
     # Test locally
-    python main.py
+    python main.py --demo
 
     # Deploy to AWS (after testing)
-    agentcore configure -e main.py
-    agentcore launch
+    agentcore configure -e main.py -n overview_demo -dt direct_code_deploy -ni
+    agentcore deploy
     agentcore invoke '{"prompt": "What is AgentCore?"}'
 
 Expected output:
@@ -40,25 +40,20 @@ Expected output:
 
     [Step 3] Ready for deployment!
     Run these commands to deploy:
-      agentcore configure -e main.py
-      agentcore launch
+      agentcore configure -e main.py -n overview_demo -dt direct_code_deploy -ni
+      agentcore deploy
       agentcore invoke '{"prompt": "Hello!"}'
 
     ============================================================
 """
 
-import os
 import sys
 
-# Optional: load environment variables from .env file
-try:
-    from dotenv import load_dotenv
-    load_dotenv()
-except ImportError:
-    pass  # dotenv is optional
-
 from strands import Agent
+from strands.models import BedrockModel
 from bedrock_agentcore.runtime import BedrockAgentCoreApp
+
+from config import AWS_REGION, MODEL_ID
 
 
 # =============================================================================
@@ -67,6 +62,7 @@ from bedrock_agentcore.runtime import BedrockAgentCoreApp
 
 # Create agent at module level (lightweight — no API calls at import time)
 agent = Agent(
+    model=BedrockModel(model_id=MODEL_ID, region_name=AWS_REGION),
     system_prompt=(
         "You are a helpful AI assistant with expertise in AWS services. "
         "You provide accurate, concise information about AWS Bedrock AgentCore. "
@@ -110,8 +106,7 @@ def invoke_deployed_agent(agent_runtime_arn: str, prompt: str):
     import uuid
     import boto3
 
-    region = os.getenv("AWS_REGION", "us-east-1")
-    client = boto3.client('bedrock-agentcore', region_name=region)
+    client = boto3.client('bedrock-agentcore', region_name=AWS_REGION)
 
     response = client.invoke_agent_runtime(
         agentRuntimeArn=agent_runtime_arn,

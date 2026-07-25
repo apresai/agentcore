@@ -10,14 +10,14 @@ AgentCore Gateway converts your existing APIs, Lambda functions, and MCP servers
 
 - AWS account with Bedrock AgentCore access
 - Python 3.10+ installed
-- boto3 SDK (`pip install boto3`)
+- boto3 SDK and Strands Agents (`pip install boto3 strands-agents`)
 - AWS credentials configured
 
 ## Environment Setup
 
 ```bash
 # Install dependencies
-pip install boto3 python-dotenv
+pip install boto3 strands-agents
 
 # Set environment variables
 export AWS_REGION=us-east-1
@@ -34,7 +34,6 @@ import time
 
 # Initialize clients
 control = boto3.client('bedrock-agentcore-control', region_name='us-east-1')
-data = boto3.client('bedrock-agentcore', region_name='us-east-1')
 sts = boto3.client('sts')
 
 account_id = sts.get_caller_identity()['Account']
@@ -60,9 +59,9 @@ gateway = control.create_gateway(
     name="ProductionGateway",
     description="Unified tool gateway for all agent tools",
     roleArn=role['Role']['Arn'],
-    authorizerType='IAM',
+    authorizerType='AWS_IAM',
     protocolType='MCP',
-    searchConfiguration={'searchType': 'SEMANTIC'}
+    protocolConfiguration={'mcp': {'searchType': 'SEMANTIC'}}
 )
 gateway_id = gateway['gatewayId']
 print(f"✓ Gateway created: {gateway_id}")
@@ -72,20 +71,22 @@ target = control.create_gateway_target(
     gatewayIdentifier=gateway_id,
     name='OrderLookup',
     targetConfiguration={
-        'lambdaTargetConfiguration': {
-            'lambdaArn': f'arn:aws:lambda:us-east-1:{account_id}:function:OrderLookup',
-            'toolSchema': {
-                'tools': [{
-                    'name': 'lookup_order',
-                    'description': 'Look up order status by order ID',
-                    'inputSchema': {
-                        'type': 'object',
-                        'properties': {
-                            'order_id': {'type': 'string', 'description': 'Order ID'}
-                        },
-                        'required': ['order_id']
-                    }
-                }]
+        'mcp': {
+            'lambda': {
+                'lambdaArn': f'arn:aws:lambda:us-east-1:{account_id}:function:OrderLookup',
+                'toolSchema': {
+                    'inlinePayload': [{
+                        'name': 'lookup_order',
+                        'description': 'Look up order status by order ID',
+                        'inputSchema': {
+                            'type': 'object',
+                            'properties': {
+                                'order_id': {'type': 'string', 'description': 'Order ID'}
+                            },
+                            'required': ['order_id']
+                        }
+                    }]
+                }
             }
         }
     }
@@ -95,42 +96,38 @@ print(f"✓ Lambda target added: {target['targetId']}")
 
 ### Invoke Tools via MCP Protocol
 
-```python
-# List all available tools
-response = data.invoke_gateway(
-    gatewayIdentifier=gateway_id,
-    method='tools/list',
-    payload=json.dumps({}).encode()
-)
-tools = json.loads(response['payload'].read())
-for tool in tools.get('tools', []):
-    print(f"  Tool: {tool['name']} - {tool['description']}")
+There is no boto3 "invoke gateway" call -- Gateway is itself an MCP server. Once a target is `READY`, agents talk to it directly over the Model Context Protocol at the gateway's endpoint, using any MCP client:
 
-# Call a tool through the gateway
-result = data.invoke_gateway(
-    gatewayIdentifier=gateway_id,
-    method='tools/call',
-    payload=json.dumps({
-        'name': 'lookup_order',
-        'arguments': {'order_id': 'ORD-12345'}
-    }).encode()
-)
-print(f"✓ Tool result: {json.loads(result['payload'].read())}")
+```python
+# Confirm the target is ready, then fetch the gateway's MCP endpoint
+targets = control.list_gateway_targets(gatewayIdentifier=gateway_id)
+for t in targets['items']:
+    print(f"  Target: {t['name']} ({t['status']})")
+
+gw = control.get_gateway(gatewayIdentifier=gateway_id)
+print(f"✓ MCP endpoint: {gw['gatewayUrl']}")
+```
+
+```python
+# Any MCP client can now list and call tools against gatewayUrl.
+# With authorizerType='AWS_IAM', requests must be SigV4-signed;
+# with 'CUSTOM_JWT', a bearer token is used instead.
+from strands.tools.mcp import MCPClient
+from mcp.client.streamable_http import streamablehttp_client
+
+mcp_client = MCPClient(lambda: streamablehttp_client(gw['gatewayUrl']))
+with mcp_client:
+    for tool in mcp_client.list_tools_sync():
+        print(f"  Tool: {tool.tool_name}")
+    result = mcp_client.call_tool_sync(
+        tool_use_id="lookup-1", name="lookup_order",
+        arguments={"order_id": "ORD-12345"})
+    print(f"✓ Tool result: {result}")
 ```
 
 ### Semantic Tool Discovery
 
-```python
-# When you have hundreds of tools, let agents search by intent
-results = data.search_gateway_tools(
-    gatewayIdentifier=gateway_id,
-    query='find customer order information',
-    maxResults=5
-)
-
-for tool in results.get('tools', []):
-    print(f"  {tool['name']}: {tool['description']} (score: {tool['relevanceScore']})")
-```
+Semantic search is a Gateway-side capability you turn on when you create the gateway (`protocolConfiguration={'mcp': {'searchType': 'SEMANTIC'}}`, above) -- there is no separate boto3 search call. With it enabled, the gateway itself ranks tool results by intent when an agent lists tools through MCP, so you do not maintain a static tool list as your target count grows.
 
 ## Running the Example
 

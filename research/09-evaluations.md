@@ -142,7 +142,7 @@ Each custom evaluator requires:
     "llmAsAJudge": {
         "modelConfig": {
             "bedrockEvaluatorModelConfig": {
-                "modelId": "global.anthropic.claude-sonnet-4-6",
+                "modelId": "us.anthropic.claude-haiku-4-5-20251001-v1:0",
                 "inferenceConfig": {
                    "maxTokens": 500,
                    "temperature": 1.0
@@ -294,7 +294,7 @@ response = control_client.create_evaluator(
         "llmAsAJudge": {
             "modelConfig": {
                 "bedrockEvaluatorModelConfig": {
-                    "modelId": "global.anthropic.claude-sonnet-4-6",
+                    "modelId": "us.anthropic.claude-haiku-4-5-20251001-v1:0",
                     "inferenceConfig": {
                         "maxTokens": 500,
                         "temperature": 1.0
@@ -418,10 +418,10 @@ Instructions define how the LLM judge should evaluate agent performance. Include
 
 ### Model Selection
 
-Supported models for evaluation include Claude and other Bedrock foundation models. Use the global inference profile for cross-region support:
+Supported models for evaluation include Claude and other Bedrock foundation models. This repo's code examples standardize on the `us.` regional inference profile, not the `global.` prefix:
 
 ```
-global.anthropic.claude-sonnet-4-6
+us.anthropic.claude-haiku-4-5-20251001-v1:0
 ```
 
 ### Rating Scales
@@ -512,7 +512,7 @@ evaluator_config = {
     "llmAsAJudge": {
         "modelConfig": {
             "bedrockEvaluatorModelConfig": {
-                "modelId": "global.anthropic.claude-sonnet-4-6",
+                "modelId": "us.anthropic.claude-haiku-4-5-20251001-v1:0",
                 "inferenceConfig": {
                     "maxTokens": 500,
                     "temperature": 1.0
@@ -582,6 +582,8 @@ print(f"ARN: {response['evaluatorArn']}")
 
 ### Example 3: Online Evaluation Configuration
 
+`dataSourceConfig` only accepts `cloudWatchLogs` — there is no `agentEndpoint` member on the raw API. The starter toolkit's `Evaluation.create_online_config(agent_id=..., agent_endpoint=...)` builds this for you from the agent's runtime log group name; calling `create_online_evaluation_config` directly means constructing that same `cloudWatchLogs` block yourself.
+
 ```python
 """
 Set up continuous evaluation of a production agent with sampling and filtering.
@@ -589,6 +591,10 @@ Set up continuous evaluation of a production agent with sampling and filtering.
 import boto3
 
 client = boto3.client('bedrock-agentcore-control', region_name='us-east-1')
+
+agent_id = "agent_customer-support-ABC123"
+endpoint_name = "DEFAULT"
+agent_name = client.get_agent_runtime(agentRuntimeId=agent_id)["agentRuntimeName"]
 
 # Create online evaluation configuration
 response = client.create_online_evaluation_config(
@@ -600,9 +606,9 @@ response = client.create_online_evaluation_config(
         }
     },
     dataSourceConfig={
-        "agentEndpoint": {
-            "agentRuntimeId": "agent_customer-support-ABC123",
-            "agentRuntimeEndpointName": "DEFAULT"
+        "cloudWatchLogs": {
+            "logGroupNames": [f"/aws/bedrock-agentcore/runtimes/{agent_id}-{endpoint_name}"],
+            "serviceNames": [f"{agent_name}.{endpoint_name}"]
         }
     },
     evaluators=[
@@ -805,12 +811,12 @@ provider.add_span_processor(processor)
 trace.set_tracer_provider(provider)
 
 # Create agent with instrumentation
-model = BedrockModel(model_id="anthropic.claude-sonnet-4-6")
+model = BedrockModel(model_id="us.anthropic.claude-haiku-4-5-20251001-v1:0")
 agent = Agent(model=model, system_prompt="You are a helpful assistant.")
 
 app = BedrockAgentCoreApp()
 
-@app.entrypoint()
+@app.entrypoint
 async def main(request):
     tracer = trace.get_tracer(__name__)
 
@@ -842,7 +848,7 @@ AwsOpenTelemetryDistro().configure(
     exporter_endpoint="https://xray.us-east-1.amazonaws.com"
 )
 
-model = BedrockModel(model_id="anthropic.claude-sonnet-4-6")
+model = BedrockModel(model_id="us.anthropic.claude-haiku-4-5-20251001-v1:0")
 agent = Agent(model=model, system_prompt="You are a helpful assistant.")
 
 # Agent traces are automatically captured for evaluation
@@ -995,9 +1001,7 @@ Required IAM policy for evaluation operations:
 
 ## Pricing
 
-**Status:** Preview - Offered at no charge during preview phase.
-
-**General Availability Pricing:**
+**Status:** General Availability (since March 31, 2026) - billed by AgentCore based on input and output tokens processed during evaluation. Verify the current rate on the [AgentCore pricing page](https://aws.amazon.com/bedrock/agentcore/pricing/).
 
 | Component | Pricing Model |
 |-----------|---------------|

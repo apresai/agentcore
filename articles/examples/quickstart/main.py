@@ -14,10 +14,10 @@ Prerequisites:
 Usage:
     # Test locally
     agentcore dev
-    agentcore invoke --dev "Hello, agent!"
+    agentcore invoke '{"prompt": "Hello, agent!"}' --dev
 
     # Deploy to AWS
-    agentcore launch
+    agentcore deploy
     agentcore invoke '{"prompt": "Hello from the cloud!"}'
 
 Expected output:
@@ -27,6 +27,9 @@ Expected output:
 
 from bedrock_agentcore.runtime import BedrockAgentCoreApp
 from strands import Agent
+from strands.models import BedrockModel
+
+from config import AWS_REGION, MODEL_ID
 
 # =============================================================================
 # Create the Agent
@@ -35,8 +38,9 @@ from strands import Agent
 # Initialize the AgentCore application wrapper
 app = BedrockAgentCoreApp()
 
-# Create a Strands agent (uses Claude via Amazon Bedrock by default)
+# Create a Strands agent backed by Claude on Amazon Bedrock
 agent = Agent(
+    model=BedrockModel(model_id=MODEL_ID, region_name=AWS_REGION),
     system_prompt="You are a helpful assistant. Be concise and friendly."
 )
 

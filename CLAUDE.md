@@ -45,8 +45,8 @@ Skills are stored in `.claude/skills/` and symlinked to `~/.claude/skills/` for 
 | Code Interpreter | Secure Python/JS/TS execution, up to 5GB files |
 | Browser | Isolated web interaction with session recording |
 | Observability | OTEL-compatible tracing via CloudWatch |
-| Evaluations | LLM-as-a-Judge quality assessment (Preview) |
-| Policy | Cedar-based deterministic access control (Preview) |
+| Evaluations | LLM-as-a-Judge quality assessment (GA, billed per token) |
+| Policy | Cedar-based deterministic access control (GA, billed per token) |
 
 ## Content Guidelines
 
@@ -143,4 +143,4 @@ us.anthropic.claude-haiku-4-5-20251001-v1:0
 - **Models**: Any model (Bedrock, OpenAI, Gemini, Claude, Nova, Llama, Mistral)
 - **Protocols**: MCP (Model Context Protocol), A2A (Agent to Agent)
 - **Pricing**: Consumption-based, I/O wait is free, $200 free tier for new customers
-- **Regions**: 14 regions for core services (Runtime, Memory, Gateway, Identity) including us-east-1, us-east-2, us-west-2, eu-central-1, eu-west-1, eu-west-2, eu-west-3, eu-north-1, ap-south-1, ap-southeast-1, ap-southeast-2, ap-northeast-1, ap-northeast-2, ca-central-1
+- **Regions**: Coverage varies by service. Runtime, Gateway, Identity, Built-in Tools, and Observability have the broadest reach; other services (including Memory) are checked in narrower subsets. See the [AWS AgentCore Supported Regions page](https://docs.aws.amazon.com/bedrock-agentcore/latest/devguide/agentcore-regions.html) for the current list rather than a hardcoded one here. Commonly used: `us-east-1`, `us-west-2`, `eu-central-1`

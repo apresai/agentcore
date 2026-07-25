@@ -67,46 +67,52 @@ AgentCore Observability provides visibility into how your agents behave in produ
 
 ## Quick Start
 
+There is no `bedrock_agentcore.observability` module - Observability isn't a client-managed resource, it's the AgentCore Runtime automatically exporting OpenTelemetry traces/spans to CloudWatch when the OTEL environment variables in the Quick Reference above are set. Viewing traces goes through CloudWatch (console, Log Insights, or the `logs` boto3 client); adding custom instrumentation goes through the standard `opentelemetry` SDK.
+
 ### View Traces
 
 ```python
-from bedrock_agentcore.observability import ObservabilityClient
+import time
+import boto3
 
-obs = ObservabilityClient()
+logs_client = boto3.client('logs', region_name='us-east-1')
 
-# Get traces for an agent
-traces = obs.list_traces(
-    agent_id="my-agent",
-    start_time=datetime.now() - timedelta(hours=1),
-    end_time=datetime.now()
+# CloudWatch Logs Insights query against the shared trace/span destination
+query = logs_client.start_query(
+    logGroupName='aws/spans',
+    startTime=int(time.time() - 3600),
+    endTime=int(time.time()),
+    queryString="""
+        fields @timestamp, @message, error_type
+        | filter error_type != ""
+        | sort @timestamp desc
+        | limit 100
+    """,
 )
 
-for trace in traces:
-    print(f"Trace: {trace.trace_id}")
-    print(f"  Duration: {trace.duration_ms}ms")
-    print(f"  Spans: {len(trace.spans)}")
+# Poll until the query completes
+while True:
+    result = logs_client.get_query_results(queryId=query['queryId'])
+    if result['status'] in ('Complete', 'Failed', 'Cancelled'):
+        break
+    time.sleep(1)
+
+for row in result['results']:
+    print({field['field']: field['value'] for field in row})
 ```
 
-### Inspect Trace Details
-
-```python
-# Get detailed trace
-trace = obs.get_trace(trace_id="abc123")
-
-for span in trace.spans:
-    print(f"{span.name}: {span.duration_ms}ms")
-    if span.attributes:
-        for key, value in span.attributes.items():
-            print(f"  {key}: {value}")
-```
+For a visual view (execution graph, error breakdowns, session drill-down), use the [CloudWatch GenAI Observability console](https://console.aws.amazon.com/cloudwatch/home#gen-ai-observability) instead of writing a query.
 
 ### Add Custom Spans
 
-```python
-from bedrock_agentcore.observability import tracer
+There is no `bedrock_agentcore.observability.tracer` - use the standard `opentelemetry` SDK directly; AgentCore's OTEL configuration (set via the environment variables above) picks up any span you create this way:
 
-# Add custom instrumentation
-with tracer.start_span("custom-operation") as span:
+```python
+from opentelemetry import trace
+
+tracer = trace.get_tracer("my-agent")
+
+with tracer.start_as_current_span("custom-operation") as span:
     span.set_attribute("operation.type", "data-processing")
     span.set_attribute("records.count", 100)
 
@@ -116,22 +122,32 @@ with tracer.start_span("custom-operation") as span:
     span.set_attribute("operation.status", "success")
 ```
 
-### Create Dashboard
+### Create a Dashboard
+
+There is no `create_dashboard()` on any AgentCore client - dashboards are a generic CloudWatch resource, created with the standard `cloudwatch` client:
 
 ```python
-# Create CloudWatch dashboard
-dashboard = obs.create_dashboard(
-    name="my-agent-dashboard",
-    agent_id="my-agent",
-    widgets=[
-        {"type": "session_count", "period": 300},
-        {"type": "latency_p99", "period": 300},
-        {"type": "error_rate", "period": 300},
-        {"type": "tool_usage", "period": 300}
-    ]
-)
+import json
+import boto3
 
-print(f"Dashboard URL: {dashboard.url}")
+cloudwatch = boto3.client('cloudwatch', region_name='us-east-1')
+
+cloudwatch.put_dashboard(
+    DashboardName='my-agent-dashboard',
+    DashboardBody=json.dumps({
+        "widgets": [
+            {
+                "type": "metric",
+                "properties": {
+                    "metrics": [["Bedrock-AgentCore", "SessionCount"], [".", "Latency"], [".", "SystemErrors"]],
+                    "period": 300,
+                    "stat": "Sum",
+                    "region": "us-east-1",
+                },
+            }
+        ]
+    }),
+)
 ```
 
 ## OTEL Integration

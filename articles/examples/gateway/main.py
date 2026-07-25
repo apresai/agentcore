@@ -41,18 +41,12 @@ Expected output:
     ============================================================
 """
 
-import os
 import json
 import time
 import boto3
 from botocore.exceptions import ClientError
 
-# Optional: load environment variables from .env file
-try:
-    from dotenv import load_dotenv
-    load_dotenv()
-except ImportError:
-    pass
+from config import AWS_REGION
 
 
 def main():
@@ -72,12 +66,10 @@ def main():
     print("  Gateway does for APIs what the Babel Fish does for")
     print("  language: instant, universal translation.")
 
-    region = os.getenv("AWS_REGION", "us-east-1")
-
     # Initialize clients
-    control_client = boto3.client('bedrock-agentcore-control', region_name=region)
-    iam_client = boto3.client('iam', region_name=region)
-    sts_client = boto3.client('sts', region_name=region)
+    control_client = boto3.client('bedrock-agentcore-control', region_name=AWS_REGION)
+    iam_client = boto3.client('iam', region_name=AWS_REGION)
+    sts_client = boto3.client('sts', region_name=AWS_REGION)
 
     account_id = sts_client.get_caller_identity()['Account']
 
@@ -138,7 +130,7 @@ def main():
         for i in range(60):  # Up to 2 minutes
             status_response = control_client.get_gateway(gatewayIdentifier=gateway_id)
             status = status_response['status']
-            if status in ('ACTIVE', 'READY'):
+            if status == 'READY':
                 print(f"✓ Gateway is {status}")
                 gateway_endpoint = status_response.get('gatewayUrl', 'N/A')
                 break
@@ -166,10 +158,11 @@ def main():
         print("")
         print("  Example CLI commands:")
         print(f"    agentcore gateway create-mcp-gateway-target \\")
-        print(f"        --gateway-id {gateway_id} \\")
+        print(f"        --gateway-arn {gateway_response['gatewayArn']} \\")
+        print(f"        --gateway-url {gateway_endpoint} \\")
+        print(f"        --role-arn {role_arn} \\")
         print(f"        --name MyTool \\")
-        print(f"        --type lambda \\")
-        print(f"        --lambda-arn <your-function-arn>")
+        print(f"        --target-type lambda")
 
         print("\n✓ Gateway working successfully!")
 
@@ -202,7 +195,7 @@ def main():
                     try:
                         status_response = control_client.get_gateway(gatewayIdentifier=gateway_id)
                         status = status_response['status']
-                        if status in ('DELETED', 'FAILED'):
+                        if status == 'FAILED':
                             break
                         if i % 10 == 0:
                             print(f"  Waiting for gateway deletion (status: {status})...")
@@ -214,7 +207,7 @@ def main():
                 print("✓ Gateway deleted")
             except Exception as e:
                 print(f"  ⚠ Gateway cleanup failed: {e}")
-                print(f"  Manual cleanup: aws bedrock-agentcore-control delete-gateway --gateway-identifier {gateway_id} --region {region}")
+                print(f"  Manual cleanup: aws bedrock-agentcore-control delete-gateway --gateway-identifier {gateway_id} --region {AWS_REGION}")
 
         # Delete IAM role
         try:

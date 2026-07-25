@@ -32,7 +32,7 @@ This tutorial builds a customer support agent using four AgentCore services work
 boto3>=1.34.0
 strands-agents>=0.1.0
 bedrock-agentcore>=1.0.0
-python-dotenv>=1.0.0
+bedrock-agentcore-starter-toolkit>=0.1.0
 ```
 
 ## Getting Started
@@ -50,9 +50,6 @@ pip install -r requirements.txt
 ```python
 import os
 import boto3
-from dotenv import load_dotenv
-
-load_dotenv()
 
 REGION = os.getenv("AWS_REGION", "us-east-1")
 control = boto3.client('bedrock-agentcore-control', region_name=REGION)
@@ -123,9 +120,9 @@ gateway = control.create_gateway(
     name="SupportAgentGateway",
     description="CRM and ticketing tools for support agent",
     roleArn=role['Role']['Arn'],
-    authorizerType='IAM',
+    authorizerType='AWS_IAM',
     protocolType='MCP',
-    searchConfiguration={'searchType': 'SEMANTIC'}
+    protocolConfiguration={'mcp': {'searchType': 'SEMANTIC'}}
 )
 gateway_id = gateway['gatewayId']
 print(f"✓ Gateway created: {gateway_id}")
@@ -133,7 +130,7 @@ print(f"✓ Gateway created: {gateway_id}")
 # Wait for gateway to be active
 for _ in range(60):
     status = control.get_gateway(gatewayIdentifier=gateway_id)['status']
-    if status in ('ACTIVE', 'READY'):
+    if status == 'READY':
         break
     time.sleep(2)
 print(f"✓ Gateway is {status}")
@@ -147,47 +144,49 @@ control.create_gateway_target(
     gatewayIdentifier=gateway_id,
     name='CustomerTools',
     targetConfiguration={
-        'lambdaTargetConfiguration': {
-            'lambdaArn': f'arn:aws:lambda:us-east-1:{account_id}:function:CustomerLookup',
-            'toolSchema': {
-                'tools': [
-                    {
-                        'name': 'lookup_customer',
-                        'description': 'Look up customer by email or account ID',
-                        'inputSchema': {
-                            'type': 'object',
-                            'properties': {
-                                'email': {'type': 'string', 'description': 'Customer email'},
-                                'account_id': {'type': 'string', 'description': 'Account ID'}
+        'mcp': {
+            'lambda': {
+                'lambdaArn': f'arn:aws:lambda:us-east-1:{account_id}:function:CustomerLookup',
+                'toolSchema': {
+                    'inlinePayload': [
+                        {
+                            'name': 'lookup_customer',
+                            'description': 'Look up customer by email or account ID',
+                            'inputSchema': {
+                                'type': 'object',
+                                'properties': {
+                                    'email': {'type': 'string', 'description': 'Customer email'},
+                                    'account_id': {'type': 'string', 'description': 'Account ID'}
+                                }
+                            }
+                        },
+                        {
+                            'name': 'get_order_status',
+                            'description': 'Get status of a customer order',
+                            'inputSchema': {
+                                'type': 'object',
+                                'properties': {
+                                    'order_id': {'type': 'string', 'description': 'Order ID'}
+                                },
+                                'required': ['order_id']
+                            }
+                        },
+                        {
+                            'name': 'create_support_ticket',
+                            'description': 'Create a new support ticket for the customer',
+                            'inputSchema': {
+                                'type': 'object',
+                                'properties': {
+                                    'customer_id': {'type': 'string'},
+                                    'subject': {'type': 'string'},
+                                    'description': {'type': 'string'},
+                                    'priority': {'type': 'string', 'enum': ['low', 'medium', 'high']}
+                                },
+                                'required': ['customer_id', 'subject', 'description']
                             }
                         }
-                    },
-                    {
-                        'name': 'get_order_status',
-                        'description': 'Get status of a customer order',
-                        'inputSchema': {
-                            'type': 'object',
-                            'properties': {
-                                'order_id': {'type': 'string', 'description': 'Order ID'}
-                            },
-                            'required': ['order_id']
-                        }
-                    },
-                    {
-                        'name': 'create_support_ticket',
-                        'description': 'Create a new support ticket for the customer',
-                        'inputSchema': {
-                            'type': 'object',
-                            'properties': {
-                                'customer_id': {'type': 'string'},
-                                'subject': {'type': 'string'},
-                                'description': {'type': 'string'},
-                                'priority': {'type': 'string', 'enum': ['low', 'medium', 'high']}
-                            },
-                            'required': ['customer_id', 'subject', 'description']
-                        }
-                    }
-                ]
+                    ]
+                }
             }
         }
     }
@@ -200,6 +199,13 @@ print("✓ Customer tools added to gateway")
 ```python
 from strands import Agent, tool
 from strands.models import BedrockModel
+from strands.tools.mcp import MCPClient
+from mcp.client.streamable_http import streamablehttp_client
+
+# Gateway is itself an MCP server -- connect once with a standard MCP client
+gateway_url = control.get_gateway(gatewayIdentifier=gateway_id)['gatewayUrl']
+mcp_client = MCPClient(lambda: streamablehttp_client(gateway_url))
+mcp_client.start()
 
 # Create tools that use Memory and Gateway
 @tool
@@ -219,7 +225,7 @@ def remember_customer(customer_id: str, session_id: str, query: str) -> str:
     )
 
     memories = []
-    for record in records.get('memoryRecords', []):
+    for record in records.get('memoryRecordSummaries', []):
         memories.append(record['content']['text'])
 
     if memories:
@@ -254,15 +260,9 @@ def call_crm_tool(tool_name: str, arguments: dict) -> str:
         tool_name: Name of the CRM tool (lookup_customer, get_order_status, create_support_ticket)
         arguments: Arguments for the tool
     """
-    response = data.invoke_gateway(
-        gatewayIdentifier=gateway_id,
-        method='tools/call',
-        payload=json.dumps({
-            'name': tool_name,
-            'arguments': arguments
-        }).encode()
-    )
-    return json.loads(response['payload'].read())
+    result = mcp_client.call_tool_sync(
+        tool_use_id=f"{tool_name}-call", name=tool_name, arguments=arguments)
+    return str(result)
 
 # Initialize the agent
 model = BedrockModel(
@@ -309,7 +309,7 @@ if __name__ == "__main__":
 Deploy with the CLI:
 
 ```bash
-agentcore deploy --name customer-support-agent --memory 1024 --timeout 3600
+agentcore deploy --agent customersupportagent
 ```
 
 ### Step 8: Run It
@@ -322,7 +322,7 @@ agentcore deploy
 agentcore invoke '{"customer_id": "CUST-123", "session_id": "sess-001", "prompt": "I need help with my order ORD-456"}'
 
 # Expected output:
-# ✓ Agent deployed: customer-support-agent
+# ✓ Agent deployed: customersupportagent
 # ✓ Response: "Let me look up your order and check our records..."
 ```
 

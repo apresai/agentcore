@@ -6,15 +6,16 @@
 
 | CLI Command | Description |
 |-------------|-------------|
-| `agentcore policy create-engine` | Create new policy engine |
-| `agentcore policy create` | Create Cedar policy |
-| `agentcore policy generate` | Generate policy from natural language |
-| `agentcore policy list` | List policies in engine |
-| `agentcore policy delete` | Delete policy |
+| `agentcore policy create-policy-engine` | Create new policy engine |
+| `agentcore policy create-policy` | Create Cedar policy |
+| `agentcore policy start-policy-generation` | Generate policy from natural language |
+| `agentcore policy list-policies` | List policies in engine |
+| `agentcore policy delete-policy` | Delete policy |
 
 | SDK Client | Purpose |
 |------------|---------|
-| `PolicyClient` (AgentCore SDK) | High-level policy operations |
+| `PolicyClient` (`bedrock_agentcore_starter_toolkit.operations.policy.client`) | High-level policy operations — used throughout this page |
+| `PolicyEngineClient` (`bedrock_agentcore.policy.client`) | Newer native-SDK client (`bedrock-agentcore` package). Shares `create_or_get_policy_engine`/`create_or_get_policy` with `PolicyClient` above, but otherwise exposes `*_and_wait` methods instead of separate create/get/poll calls |
 | `bedrock-agentcore-control` (boto3) | Control plane API access |
 
 | Key API | Description |
@@ -104,142 +105,140 @@ Cedar follows a default-deny authorization model:
 pip install bedrock-agentcore-starter-toolkit
 ```
 
-### agentcore policy create-engine
+`agentcore policy --help` lists 15 subcommands. The ones below cover the core create/generate/list/delete workflow; `agentcore policy --help` shows the full set (including `update-policy-engine`, `update-policy`, `get-policy-engine`, `get-policy`, `list-policy-engines`, `get-policy-generation`, `list-policy-generations`, `list-policy-generation-assets`, and `create-policy-from-generation`).
+
+### agentcore policy create-policy-engine
 
 Create a new policy engine.
 
 ```bash
-agentcore policy create-engine [OPTIONS]
+agentcore policy create-policy-engine [OPTIONS]
 ```
 
 **Options:**
 
 | Option | Description | Default |
 |--------|-------------|---------|
-| `--name` | Policy engine name | Required |
-| `--description` | Human-readable description | None |
-| `--region` | AWS region | us-east-1 |
+| `--name`, `-n` | Policy engine name | Required |
+| `--description`, `-d` | Human-readable description | None |
+| `--encryption-key-arn` | KMS key ARN for encryption | None |
+| `--tags` | Tags as JSON | None |
+| `--region`, `-r` | AWS region | us-east-1 |
 
 **Examples:**
 
 ```bash
 # Basic policy engine
-agentcore policy create-engine --name RefundPolicyEngine
+agentcore policy create-policy-engine --name RefundPolicyEngine
 
 # With description
-agentcore policy create-engine \
+agentcore policy create-policy-engine \
     --name RefundPolicyEngine \
     --description "Policy engine for refund governance"
 ```
 
-### agentcore policy create
+### agentcore policy create-policy
 
 Create a Cedar policy in a policy engine.
 
 ```bash
-agentcore policy create [OPTIONS]
+agentcore policy create-policy [OPTIONS]
 ```
 
 **Options:**
 
 | Option | Description | Default |
 |--------|-------------|---------|
-| `--engine-id` | Policy engine ID | Required |
-| `--name` | Policy name | Required |
-| `--statement` | Cedar policy statement | Required |
-| `--description` | Policy description | None |
+| `--policy-engine-id`, `-e` | Policy engine ID | Required |
+| `--name`, `-n` | Policy name | Required |
+| `--definition`, `-def` | Policy definition JSON, e.g. `{"cedar":{"statement":"permit(...);"}}` | Required |
+| `--description`, `-d` | Policy description | None |
 | `--validation-mode` | FAIL_ON_ANY_FINDINGS or IGNORE_ALL_FINDINGS | FAIL_ON_ANY_FINDINGS |
+| `--region`, `-r` | AWS region | us-east-1 |
 
 **Examples:**
 
 ```bash
 # Create refund limit policy
-agentcore policy create \
-    --engine-id pe-abc123xyz \
+agentcore policy create-policy \
+    --policy-engine-id pe-abc123xyz \
     --name refund_limit_policy \
     --description "Allow refunds under $1000" \
-    --statement 'permit(principal, action == AgentCore::Action::"RefundTool__process_refund", resource) when { context.input.amount < 1000 };'
+    --definition '{"cedar":{"statement":"permit(principal, action == AgentCore::Action::\"RefundTool__process_refund\", resource) when { context.input.amount < 1000 };"}}'
 
 # With lenient validation
-agentcore policy create \
-    --engine-id pe-abc123xyz \
+agentcore policy create-policy \
+    --policy-engine-id pe-abc123xyz \
     --name test_policy \
     --validation-mode IGNORE_ALL_FINDINGS \
-    --statement 'permit(principal, action, resource);'
+    --definition '{"cedar":{"statement":"permit(principal, action, resource);"}}'
 ```
 
-### agentcore policy generate
+### agentcore policy start-policy-generation
 
 Generate Cedar policy from natural language.
 
 ```bash
-agentcore policy generate [OPTIONS]
+agentcore policy start-policy-generation [OPTIONS]
 ```
 
 **Options:**
 
 | Option | Description | Default |
 |--------|-------------|---------|
-| `--engine-id` | Policy engine ID | Required |
-| `--name` | Generation request name | Required |
-| `--description` | Natural language policy description | Required |
-| `--gateway-arn` | Target gateway ARN | Required |
+| `--policy-engine-id`, `-e` | Policy engine ID | Required |
+| `--name`, `-n` | Generation name | Required |
+| `--resource-arn` | Gateway ARN the generated policies will target | Required |
+| `--content`, `-c` | Natural language policy description | Required |
+| `--region`, `-r` | AWS region | us-east-1 |
 
 **Examples:**
 
 ```bash
 # Generate from natural language
-agentcore policy generate \
-    --engine-id pe-abc123xyz \
+agentcore policy start-policy-generation \
+    --policy-engine-id pe-abc123xyz \
     --name AllowSmallRefunds \
-    --description "Allow any user to process refunds under $500" \
-    --gateway-arn arn:aws:bedrock-agentcore:us-east-1:123456789012:gateway/gw-xyz
+    --resource-arn arn:aws:bedrock-agentcore:us-east-1:123456789012:gateway/gw-xyz \
+    --content "Allow any user to process refunds under $500"
 
 # More complex policy
-agentcore policy generate \
-    --engine-id pe-abc123xyz \
+agentcore policy start-policy-generation \
+    --policy-engine-id pe-abc123xyz \
     --name ManagerOnlyLargeRefunds \
-    --description "Only users with the manager role can process refunds over $1000" \
-    --gateway-arn arn:aws:bedrock-agentcore:us-east-1:123456789012:gateway/gw-xyz
+    --resource-arn arn:aws:bedrock-agentcore:us-east-1:123456789012:gateway/gw-xyz \
+    --content "Only users with the manager role can process refunds over $1000"
 ```
 
-### agentcore policy list
+Review results with `agentcore policy get-policy-generation --policy-engine-id pe-abc123xyz --generation-id <id>`, then create the chosen option with `agentcore policy create-policy-from-generation`.
+
+### agentcore policy list-policies
 
 List policies in a policy engine.
 
 ```bash
-agentcore policy list --engine-id pe-abc123xyz
-
-# Output
-NAME                    STATUS    CREATED
-refund_limit_policy     ACTIVE    2025-01-15T10:30:00Z
-manager_override        ACTIVE    2025-01-15T11:00:00Z
+agentcore policy list-policies --policy-engine-id pe-abc123xyz
 ```
 
-### agentcore policy delete
+### agentcore policy delete-policy
 
 Delete a policy.
 
 ```bash
-agentcore policy delete --engine-id pe-abc123xyz --policy-id pol-def456
+agentcore policy delete-policy --policy-engine-id pe-abc123xyz --policy-id pol-def456
 ```
 
-### agentcore policy attach
+### Attaching a Policy Engine to a Gateway
 
-Attach policy engine to gateway.
-
-```bash
-agentcore policy attach \
-    --gateway-id gw-abc123 \
-    --engine-arn arn:aws:bedrock-agentcore:us-east-1:123456789012:policy-engine/pe-abc123xyz \
-    --mode ENFORCE
-```
+There is no `agentcore policy attach` CLI command. Attach a policy engine through the SDK (`GatewayClient.update_gateway_policy_engine`) or boto3 (`update_gateway` with a `policyEngineConfiguration`) — see the SDK Reference and boto3 sections below.
 
 ---
 
 ## SDK Reference
 
 ### Using AgentCore SDK (Recommended)
+
+This page uses the starter toolkit's `PolicyClient`, which is still current and matches every call below. A newer, native-SDK client also exists — `PolicyEngineClient` from `bedrock_agentcore.policy.client` (`bedrock-agentcore` package, not the starter toolkit) — but it exposes a different, smaller surface (`create_policy_and_wait`, `create_policy_engine_and_wait`, `generate_and_create_policy`, etc. instead of separate create/get/poll methods), so the two are not drop-in replacements for each other.
 
 ```python
 from bedrock_agentcore_starter_toolkit.operations.policy.client import PolicyClient
@@ -470,14 +469,28 @@ client.delete_policy_engine(
 
 ##### UpdateGateway (Attach Policy Engine)
 
+The field is `gatewayIdentifier` (not `gatewayId`), and `policyEngineConfiguration` uses `arn`/`mode` (not `policyEngineArn`/`enforcementMode`).
+
 ```python
-response = client.update_gateway(
-    gatewayId='gw-abc123',
-    policyEngineConfiguration={
-        'policyEngineArn': 'arn:aws:bedrock-agentcore:us-east-1:123456789012:policy-engine/pe-abc123xyz',
-        'enforcementMode': 'ENFORCE'  # or 'LOG_ONLY'
-    }
-)
+# UpdateGateway is not a sparse patch: name, roleArn and authorizerType are
+# required on every call, so read the current configuration back first.
+gw = client.get_gateway(gatewayIdentifier='gw-abc123')
+
+kwargs = {
+    'gatewayIdentifier': 'gw-abc123',
+    'name': gw['name'],
+    'roleArn': gw['roleArn'],
+    'authorizerType': gw['authorizerType'],
+    'policyEngineConfiguration': {
+        'arn': 'arn:aws:bedrock-agentcore:us-east-1:123456789012:policy-engine/pe-abc123xyz',
+        'mode': 'ENFORCE'  # or 'LOG_ONLY'
+    },
+}
+# botocore rejects an explicit None here, so only include it when it exists
+if gw.get('authorizerConfiguration'):
+    kwargs['authorizerConfiguration'] = gw['authorizerConfiguration']
+
+response = client.update_gateway(**kwargs)
 ```
 
 ---
@@ -1421,13 +1434,19 @@ def switch_enforcement_mode(gateway_id: str, engine_arn: str, mode: str):
     """Switch between ENFORCE and LOG_ONLY modes."""
     client = boto3.client('bedrock-agentcore-control', region_name='us-east-1')
 
-    response = client.update_gateway(
-        gatewayId=gateway_id,
-        policyEngineConfiguration={
-            'policyEngineArn': engine_arn,
-            'enforcementMode': mode
-        }
-    )
+    # UpdateGateway requires name, roleArn and authorizerType on every call.
+    gw = client.get_gateway(gatewayIdentifier=gateway_id)
+    kwargs = {
+        'gatewayIdentifier': gateway_id,
+        'name': gw['name'],
+        'roleArn': gw['roleArn'],
+        'authorizerType': gw['authorizerType'],
+        'policyEngineConfiguration': {'arn': engine_arn, 'mode': mode},
+    }
+    if gw.get('authorizerConfiguration'):
+        kwargs['authorizerConfiguration'] = gw['authorizerConfiguration']
+
+    response = client.update_gateway(**kwargs)
 
     print(f"Gateway updated to {mode} mode")
     return response
@@ -1504,7 +1523,8 @@ engine = policy_client.create_or_get_policy_engine(
 )
 
 # Create policies specific to gateway tools
-for target in gateway_client.list_targets(gateway['gatewayId']):
+targets = gateway_client.list_gateway_targets(gateway_identifier=gateway['gatewayId'])
+for target in targets['items']:
     tool_name = target['name']
 
     # Create tool-specific policy
@@ -1636,7 +1656,7 @@ aws bedrock-agentcore-control get-policy \
 
 # Check gateway policy engine attachment
 aws bedrock-agentcore-control get-gateway \
-    --gateway-id gw-abc123
+    --gateway-identifier gw-abc123
 
 # View policy decision logs
 aws logs filter-log-events \
@@ -1680,12 +1700,7 @@ aws logs filter-log-events \
 
 ## Pricing
 
-**Preview** - AgentCore Policy is currently in preview and available at no charge.
-
-**Post-Preview pricing** (anticipated):
-- Policy engine hosting: Per engine/month
-- Policy evaluations: Per 1,000 evaluations
-- Natural language generation: Per 1,000 input tokens
+**General Availability** - AgentCore Policy reached GA on March 3, 2026, and is billed: AWS charges per one million user input tokens processed for authorization requests performed during agent execution. Verify the exact current rate on the [AgentCore pricing page](https://aws.amazon.com/bedrock/agentcore/pricing/) — it was not independently re-priced as part of this pass.
 
 ---
 

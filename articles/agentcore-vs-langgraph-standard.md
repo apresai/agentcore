@@ -37,7 +37,7 @@ Plus: Dockerfile, task-def.json, network.json, IAM roles, security groups, healt
 ### LangGraph on AgentCore
 
 ```bash
-agentcore create --framework langgraph --model-provider bedrock --name my-agent
+agentcore create --agent-framework LangChain_LangGraph --model-provider Bedrock --project-name myagent
 agentcore deploy
 agentcore invoke '{"prompt": "Analyze Q4 revenue trends"}'
 ```
@@ -107,7 +107,7 @@ In self-hosted containers, a prompt injection achieving code execution can reach
 |--------|-------------|-----------|
 | **Scale-to-zero** | No (minimum tasks) | Yes |
 | **Cold start** | 30-60s (container pull) | Seconds (microVM boot) |
-| **Max concurrent** | Task count limited | 1,000/account (adjustable) |
+| **Max concurrent** | Task count limited | 2,500-5,000/account (adjustable) |
 | **Scaling speed** | Minutes | Seconds |
 | **Max session** | Unlimited (always billed) | 8 hours |
 
@@ -138,7 +138,7 @@ Self-hosted base cost (even with zero traffic):
 Moving from self-hosted to AgentCore requires no changes to agent logic:
 
 1. Wrap your compiled graph with `BedrockAgentCoreApp` (shown above)
-2. `pip install bedrock-agentcore-starter-toolkit`
+2. `pip install bedrock-agentcore bedrock-agentcore-starter-toolkit`
 3. `agentcore deploy`
 4. Validate, then decommission ECS infrastructure
 

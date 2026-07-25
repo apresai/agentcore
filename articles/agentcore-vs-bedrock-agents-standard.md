@@ -69,7 +69,7 @@ graph = StateGraph(AgentState)
 
 # CrewAI (role-based collaboration)
 from crewai import Agent, Crew
-researcher = Agent(role="Researcher", ...)
+researcher = Agent(role="Researcher")  # plus goal, backstory, etc.
 ```
 
 All three deploy to AgentCore Runtime the same way.

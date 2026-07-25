@@ -10,12 +10,17 @@
 | `agentcore memory list` | List all memories |
 | `agentcore memory get` | Get memory details |
 | `agentcore memory delete` | Delete memory resource |
-| `agentcore memory update-strategies` | Update long-term strategies |
+| `agentcore memory status` | Get memory provisioning status |
+| `agentcore memory show` | Show memory data (actors, sessions, events, records) |
+| `agentcore memory browse` | Interactive TUI browser for memory content |
+
+There is no `agentcore memory update-strategies` command. Strategies are set at `create` time via `--strategies` (a JSON string); updating them after creation goes through the `bedrock-agentcore-control` `update_memory` boto3 call's `memoryStrategies` parameter (there is no separate `UpdateMemoryStrategies` operation), not a dedicated CLI subcommand.
 
 | SDK Client | Purpose |
 |------------|---------|
-| `MemoryClient` (AgentCore SDK) | High-level memory operations |
-| `bedrock-agentcore` (data plane) | Create events, retrieve memories |
+| `MemoryClient` (AgentCore SDK) | Create memories/strategies, store events, retrieve long-term memories |
+| `MemorySessionManager` / `MemorySession` (AgentCore SDK) | Per-session turn tracking, branching, long-term search |
+| `bedrock-agentcore` (data plane) | Create events, retrieve/list memory records |
 | `bedrock-agentcore-control` (control plane) | Manage memory resources |
 
 | Key API | Description |
@@ -23,7 +28,7 @@
 | `CreateMemory` | Create memory resource |
 | `CreateEvent` | Store conversation turn |
 | `RetrieveMemoryRecords` | Semantic search long-term memory |
-| `GetEvents` | Retrieve short-term events |
+| `ListEvents` | Retrieve short-term events |
 | `ListMemoryRecords` | List extracted memories |
 
 ---
@@ -43,9 +48,9 @@ Without memory, AI agents are **stateless** - each interaction is treated as new
 ### Memory Resource
 
 A memory resource is a logical container that encapsulates both raw events and processed long-term memories. It defines:
-- How long data is retained
+- How long raw events are retained (`eventExpiryDuration`, in **days**, 3-365)
 - How it's secured (encryption)
-- How raw interactions are transformed into insights
+- How raw interactions are transformed into insights (strategies)
 
 ### Short-Term Memory
 
@@ -69,10 +74,14 @@ Captures **turn-by-turn interactions** within a single session:
 
 ### Memory Strategies
 
-Define how raw events are transformed into long-term memories:
-- **Built-in strategies**: Pre-configured extraction patterns
-- **Custom strategies**: Your own extraction logic
-- **Self-managed strategies**: Full control over pipelines
+Define how raw events are transformed into long-term memories. The real strategy types (both in the CLI's `--strategies` JSON and the SDK's `create_memory(strategies=...)`) are:
+- **`semanticMemoryStrategy`** - Extracts factual information
+- **`summaryMemoryStrategy`** - Session summaries
+- **`userPreferenceMemoryStrategy`** - User preferences
+- **`episodicMemoryStrategy`** - Structured episodes (scenario, intent, action, outcome)
+- **`customMemoryStrategy`** - Prompt overrides on one of the above, or a fully self-managed extraction pipeline
+
+Each has `name`, optional `description`, and `namespaces` (or `namespaceTemplates`). There is no `sessionSummaryMemoryStrategy` key or `maxRecentSessions` field - the strategy is named `summaryMemoryStrategy`, and controls like retention live at the memory-resource level (`eventExpiryDuration`), not per strategy.
 
 ---
 
@@ -84,40 +93,46 @@ Define how raw events are transformed into long-term memories:
 pip install bedrock-agentcore-starter-toolkit
 ```
 
+> The starter toolkit's CLI now recommends `@aws/agentcore` (`npm install -g @aws/agentcore`) for new work; see [AgentCore Runtime](./01-runtime.md#installation) for the deprecation notice. This reference covers the Python starter toolkit (0.3.10) as installed today.
+
 ### agentcore memory create
 
-Create a new memory resource.
+Create a new memory resource. `NAME` is a required positional argument, not a `--name` flag.
 
 ```bash
-agentcore memory create [OPTIONS]
+agentcore memory create NAME [OPTIONS]
 ```
 
 **Options:**
 
 | Option | Description | Default |
 |--------|-------------|---------|
-| `--name` | Memory name | Required |
-| `--region` | AWS region | us-east-1 |
-| `--strategies` | Long-term strategies (comma-separated) | None |
-| `--ttl` | Short-term memory TTL (seconds) | 86400 |
-| `--kms-key` | Custom KMS key ARN | AWS managed |
+| `--region`, `-r` | AWS region | session region |
+| `--description`, `-d` | Description for the memory | None |
+| `--event-expiry-days`, `-e` | Event retention, in days | 90 |
+| `--strategies`, `-s` | JSON string of memory strategies | None |
+| `--role-arn` | IAM role ARN for memory execution | auto-created |
+| `--encryption-key-arn` | KMS key ARN for encryption | AWS managed |
+| `--wait` / `--no-wait` | Wait for the memory to become `ACTIVE` | `--wait` |
+| `--max-wait` | Maximum wait time (seconds) | 300 |
+
+There is no `--name`, `--ttl`, or `--kms-key` flag - use the positional name, `--event-expiry-days` (days, not seconds), and `--encryption-key-arn`.
 
 **Examples:**
 
 ```bash
 # Basic memory (short-term only)
-agentcore memory create --name CustomerSupport
+agentcore memory create CustomerSupport
 
-# With long-term strategies
-agentcore memory create \
-    --name CustomerSupport \
-    --strategies SessionSummarizer,PreferenceLearner,FactExtractor
+# With a long-term strategy, waiting for ACTIVE
+agentcore memory create CustomerSupport \
+    --strategies '[{"semanticMemoryStrategy": {"name": "Facts"}}, {"userPreferenceMemoryStrategy": {"name": "Preferences"}}]' \
+    --wait
 
-# With custom TTL and encryption
-agentcore memory create \
-    --name SecureMemory \
-    --ttl 3600 \
-    --kms-key arn:aws:kms:us-east-1:123456789012:key/abc123
+# With custom retention and encryption
+agentcore memory create SecureMemory \
+    --event-expiry-days 30 \
+    --encryption-key-arn arn:aws:kms:us-east-1:123456789012:key/abc123
 ```
 
 ### agentcore memory list
@@ -126,37 +141,40 @@ List all memory resources.
 
 ```bash
 agentcore memory list [OPTIONS]
-
-# Output format
-NAME                STATUS    STRATEGIES
-CustomerSupport     ACTIVE    SessionSummarizer, PreferenceLearner
-SecureMemory        ACTIVE    None
 ```
+
+| Option | Description | Default |
+|--------|-------------|---------|
+| `--region`, `-r` | AWS region | - |
+| `--max-results`, `-n` | Maximum results | 100 |
 
 ### agentcore memory get
 
-Get details of a memory resource.
+Get details of a memory resource. `MEMORY_ID` is a required positional argument, not `--name`.
 
 ```bash
-agentcore memory get --name CustomerSupport
+agentcore memory get MEMORY_ID [--region REGION]
 ```
 
 ### agentcore memory delete
 
-Delete a memory resource.
+Delete a memory resource. `MEMORY_ID` is positional.
 
 ```bash
-agentcore memory delete --name CustomerSupport --force
+agentcore memory delete MEMORY_ID [--wait] [--max-wait SECONDS]
 ```
 
-### agentcore memory update-strategies
-
-Add or update long-term memory strategies.
+### agentcore memory status / show / browse
 
 ```bash
-agentcore memory update-strategies \
-    --name CustomerSupport \
-    --add SessionSummarizer
+# Provisioning status
+agentcore memory status MEMORY_ID
+
+# Inspect actors, sessions, events, and extracted records
+agentcore memory show MEMORY_ID
+
+# Interactive TUI browser
+agentcore memory browse MEMORY_ID
 ```
 
 ---
@@ -165,7 +183,7 @@ agentcore memory update-strategies \
 
 ### Using AgentCore SDK (Recommended)
 
-The AgentCore SDK provides a high-level interface for memory operations.
+The AgentCore SDK provides a high-level interface for memory operations. `MemoryClient` covers memory/strategy setup and short-term event storage; per-session turn tracking, branching, and long-term search go through `MemorySessionManager`/`MemorySession` instead.
 
 ```python
 from bedrock_agentcore.memory import MemoryClient
@@ -180,35 +198,30 @@ from bedrock_agentcore.memory import MemoryClient
 
 client = MemoryClient(region_name='us-east-1')
 
-# Create memory with short-term only
+# Create memory with short-term only (default event_expiry_days=90)
 memory = client.create_memory(
     name="CustomerSupportMemory",
-    description="Memory for customer support agent"
+    description="Memory for customer support agent",
 )
 
-# Create memory with long-term strategies
+# Create memory with long-term strategies, waiting for ACTIVE
 memory = client.create_memory_and_wait(
     name="CustomerSupportMemory",
     strategies=[
-        {
-            "strategyName": "SessionSummarizer",
-            "namespaces": ["summaries"]
-        },
-        {
-            "strategyName": "PreferenceLearner",
-            "namespaces": ["preferences"]
-        },
-        {
-            "strategyName": "FactExtractor",
-            "namespaces": ["facts"]
-        }
-    ]
+        {"summaryMemoryStrategy": {"name": "SessionSummarizer", "namespaces": ["summaries"]}},
+        {"userPreferenceMemoryStrategy": {"name": "PreferenceLearner", "namespaces": ["preferences"]}},
+        {"semanticMemoryStrategy": {"name": "FactExtractor", "namespaces": ["facts"]}},
+    ],
 )
 
 memory_id = memory["memoryId"]
 ```
 
+`event_expiry_days` (SDK) / `--event-expiry-days` (CLI) accepts **3-365 days**, not seconds - there is no `ttl`/TTL-in-seconds parameter on memory creation.
+
 #### Create Event (Store Conversation)
+
+`messages` is a list of `(text, role)` **tuples**, not `{"role": ..., "content": ...}` dicts. `role` is a plain string (`"USER"`, `"ASSISTANT"`, `"TOOL"`, or `"OTHER"` - see `bedrock_agentcore.memory.constants.MessageRole`).
 
 ```python
 # Store a conversation turn
@@ -217,59 +230,82 @@ client.create_event(
     actor_id="user-123",
     session_id="session-456",
     messages=[
-        {"role": "user", "content": "I'd like to book a flight to Seattle"},
-        {"role": "assistant", "content": "I'd be happy to help you book a flight to Seattle. What dates are you looking at?"},
-        {"role": "user", "content": "Next Friday, and I prefer window seats"},
-        {"role": "assistant", "content": "Got it! I'll look for window seats on flights to Seattle for next Friday."}
-    ]
+        ("I'd like to book a flight to Seattle", "USER"),
+        ("I'd be happy to help you book a flight to Seattle. What dates are you looking at?", "ASSISTANT"),
+        ("Next Friday, and I prefer window seats", "USER"),
+        ("Got it! I'll look for window seats on flights to Seattle for next Friday.", "ASSISTANT"),
+    ],
 )
 ```
 
 #### Retrieve Short-Term Memory
 
+`MemoryClient` has no `get_events` method - use `list_events`.
+
 ```python
 # Get recent conversation history
-events = client.get_events(
+events = client.list_events(
     memory_id=memory_id,
     actor_id="user-123",
-    session_id="session-456"
+    session_id="session-456",
 )
 
 for event in events:
-    for msg in event["messages"]:
-        print(f"{msg['role']}: {msg['content']}")
+    # payload is a list of items, each with a 'conversational' or 'blob' key
+    # (list_events is a thin wrapper over the raw ListEvents API)
+    for item in event.get("payload", []):
+        conv = item.get("conversational")
+        if conv:
+            print(f"{conv['role']}: {conv['content']['text']}")
+```
+
+For simple "last N turns" retrieval, `get_last_k_turns` is usually simpler than paging through `list_events`:
+
+```python
+turns = client.get_last_k_turns(
+    memory_id=memory_id,
+    actor_id="user-123",
+    session_id="session-456",
+    k=5,
+)
 ```
 
 #### Retrieve Long-Term Memory
+
+`retrieve_memories` takes `namespace`/`namespace_path` and `top_k` - there is no `session_id` argument (long-term memory is keyed by actor/namespace, not session) and no `max_results` argument.
 
 ```python
 # Semantic search across extracted memories
 memories = client.retrieve_memories(
     memory_id=memory_id,
-    actor_id="user-123",
-    query="What are the user's travel preferences?",
     namespace="preferences",
-    max_results=5
+    query="What are the user's travel preferences?",
+    actor_id="user-123",
+    top_k=5,
 )
 
 for memory in memories:
-    print(f"Memory: {memory['content']}")
+    print(f"Memory: {memory['content']['text']}")
     print(f"Score: {memory['score']}")
 ```
 
 #### List Memory Records
 
+`MemoryClient` does not expose a `list_memory_records` convenience method; call the data-plane API directly for a raw listing.
+
 ```python
-# List all extracted memory records
-records = client.list_memory_records(
-    memory_id=memory_id,
-    actor_id="user-123",
-    namespace="preferences"
+import boto3
+
+data_client = boto3.client('bedrock-agentcore', region_name='us-east-1')
+
+response = data_client.list_memory_records(
+    memoryId=memory_id,
+    namespace='preferences',
 )
 
-for record in records:
+for record in response['memoryRecordSummaries']:
     print(f"ID: {record['memoryRecordId']}")
-    print(f"Content: {record['content']}")
+    print(f"Content: {record['content']['text']}")
 ```
 
 ### Using boto3 Directly
@@ -290,17 +326,18 @@ data_client = boto3.client('bedrock-agentcore', region_name='us-east-1')
 
 ##### CreateMemory
 
+`eventExpiryDuration` is **days** (3-365), not seconds, and is required.
+
 ```python
 response = control_client.create_memory(
     name='CustomerSupportMemory',
     description='Memory for customer support',
     clientToken='unique-token-123',
     encryptionKeyArn='arn:aws:kms:us-east-1:123456789012:key/abc123',  # Optional
-    eventExpiryDuration=86400,  # Short-term TTL in seconds
+    eventExpiryDuration=90,  # Days, 3-365
     memoryStrategies=[
         {
-            'sessionSummaryMemoryStrategy': {
-                'maxRecentSessions': 10,
+            'summaryMemoryStrategy': {
                 'name': 'SessionSummarizer',
                 'namespaces': ['summaries']
             }
@@ -320,8 +357,10 @@ response = control_client.create_memory(
     ]
 )
 
-memory_id = response['memoryId']
-memory_arn = response['memoryArn']
+# Raw boto3 output nests everything under a `memory` key - unlike the
+# MemoryClient SDK wrapper, which normalizes it to top-level memoryId/memoryArn.
+memory_id = response['memory']['id']
+memory_arn = response['memory']['arn']
 ```
 
 **Parameters:**
@@ -329,8 +368,8 @@ memory_arn = response['memoryArn']
 | Parameter | Type | Required | Description |
 |-----------|------|----------|-------------|
 | `name` | string | Yes | Memory name (1-48 chars) |
+| `eventExpiryDuration` | int | Yes | Event retention in days (3-365) |
 | `description` | string | No | Description |
-| `eventExpiryDuration` | int | No | Short-term TTL (seconds) |
 | `encryptionKeyArn` | string | No | Custom KMS key |
 | `memoryStrategies` | list | No | Long-term strategies |
 
@@ -341,8 +380,9 @@ response = control_client.get_memory(
     memoryId='mem-abc123xyz'
 )
 
-status = response['status']  # CREATING, ACTIVE, FAILED
-strategies = response['memoryStrategies']
+memory = response['memory']  # also nested, same as CreateMemory's output
+status = memory['status']  # CREATING, ACTIVE, FAILED
+strategies = memory['strategies']
 ```
 
 ##### ListMemories
@@ -352,23 +392,27 @@ response = control_client.list_memories(
     maxResults=50
 )
 
-for memory in response['memorySummaries']:
-    print(f"{memory['name']}: {memory['status']}")
+for memory in response['memories']:
+    print(f"{memory['id']}: {memory['status']}")
 ```
 
-##### UpdateMemoryStrategies
+##### UpdateMemory (adding/modifying/removing strategies)
+
+There is no separate `UpdateMemoryStrategies` operation - strategy changes go through `UpdateMemory`'s `memoryStrategies` parameter, which itself nests `addMemoryStrategies`/`modifyMemoryStrategies`/`deleteMemoryStrategies` lists.
 
 ```python
-response = control_client.update_memory_strategies(
+response = control_client.update_memory(
     memoryId='mem-abc123xyz',
-    strategies=[
-        {
-            'sessionSummaryMemoryStrategy': {
-                'name': 'NewSummarizer',
-                'namespaces': ['new-summaries']
+    memoryStrategies={
+        'addMemoryStrategies': [
+            {
+                'summaryMemoryStrategy': {
+                    'name': 'NewSummarizer',
+                    'namespaces': ['new-summaries']
+                }
             }
-        }
-    ]
+        ]
+    }
 )
 ```
 
@@ -390,15 +434,13 @@ response = data_client.create_event(
     actorId='user-123',
     sessionId='session-456',
     eventTimestamp='2024-01-15T10:30:00Z',
-    payload={
-        'messages': [
-            {'role': 'user', 'content': 'Hello, I need help'},
-            {'role': 'assistant', 'content': 'Hi! How can I help you today?'}
-        ]
-    }
+    payload=[
+        {'conversational': {'role': 'USER', 'content': {'text': 'Hello, I need help'}}},
+        {'conversational': {'role': 'ASSISTANT', 'content': {'text': 'Hi! How can I help you today?'}}},
+    ]
 )
 
-event_id = response['eventId']
+event_id = response['event']['eventId']
 ```
 
 **Parameters:**
@@ -407,14 +449,14 @@ event_id = response['eventId']
 |-----------|------|----------|-------------|
 | `memoryId` | string | Yes | Memory resource ID |
 | `actorId` | string | Yes | User/actor identifier |
-| `sessionId` | string | Yes | Session identifier |
-| `payload` | object | Yes | Event data (messages) |
-| `eventTimestamp` | string | No | ISO 8601 timestamp |
+| `payload` | list | Yes | List of event payload items |
+| `eventTimestamp` | timestamp | Yes | When the event occurred |
+| `sessionId` | string | No (API) | Session identifier - optional on the raw API, but required by the `MemoryClient.create_event()` SDK wrapper |
 
-##### GetEvents
+##### ListEvents
 
 ```python
-response = data_client.get_events(
+response = data_client.list_events(
     memoryId='mem-abc123xyz',
     actorId='user-123',
     sessionId='session-456',
@@ -433,16 +475,14 @@ Semantic search across long-term memories.
 ```python
 response = data_client.retrieve_memory_records(
     memoryId='mem-abc123xyz',
-    actorId='user-123',
-    query='travel preferences',
     namespace='preferences',
-    maxResults=10
+    searchCriteria={'searchQuery': 'travel preferences', 'topK': 10},
 )
 
-for record in response['memoryRecords']:
-    print(f"Content: {record['content']}")
+for record in response['memoryRecordSummaries']:
+    print(f"Content: {record['content']['text']}")
     print(f"Score: {record['score']}")
-    print(f"Namespace: {record['namespace']}")
+    print(f"Namespaces: {record['namespaces']}")
 ```
 
 **Parameters:**
@@ -450,10 +490,11 @@ for record in response['memoryRecords']:
 | Parameter | Type | Required | Description |
 |-----------|------|----------|-------------|
 | `memoryId` | string | Yes | Memory resource ID |
-| `actorId` | string | Yes | User/actor identifier |
-| `query` | string | Yes | Search query |
+| `searchCriteria` | object | Yes | `{'searchQuery': ..., 'topK': ...}` |
 | `namespace` | string | No | Filter by namespace |
-| `maxResults` | int | No | Maximum results (default: 10) |
+| `maxResults` | int | No | Page size |
+
+Note there is no `actorId` parameter on this API - namespace scoping (e.g. `/strategies/{id}/actors/{actorId}/`) is how records are scoped to a user.
 
 ##### ListMemoryRecords
 
@@ -462,29 +503,27 @@ List all extracted memory records.
 ```python
 response = data_client.list_memory_records(
     memoryId='mem-abc123xyz',
-    actorId='user-123',
     namespace='preferences'
 )
 
-for record in response['memoryRecords']:
+for record in response['memoryRecordSummaries']:
     print(f"ID: {record['memoryRecordId']}")
-    print(f"Strategy: {record['strategyId']}")
+    print(f"Strategy: {record['memoryStrategyId']}")
 ```
 
 ---
 
 ## Built-in Memory Strategies
 
-### SessionSummaryMemoryStrategy
+### summaryMemoryStrategy
 
-Creates condensed summaries of conversations within a session.
+Creates condensed summaries of conversations within a session. (Not `sessionSummaryMemoryStrategy` - there is no `maxRecentSessions` field; namespace scoping and retention control what stays available.)
 
 ```python
 {
-    'sessionSummaryMemoryStrategy': {
+    'summaryMemoryStrategy': {
         'name': 'SessionSummarizer',
         'namespaces': ['summaries'],
-        'maxRecentSessions': 10  # How many sessions to keep
     }
 }
 ```
@@ -494,7 +533,7 @@ Creates condensed summaries of conversations within a session.
 - Session handoff between agents
 - Audit trail of interactions
 
-### UserPreferenceMemoryStrategy
+### userPreferenceMemoryStrategy
 
 Identifies and extracts user preferences, choices, and styles.
 
@@ -512,7 +551,7 @@ Identifies and extracts user preferences, choices, and styles.
 - Proactive suggestions
 - User profiling
 
-### SemanticMemoryStrategy
+### semanticMemoryStrategy
 
 Extracts factual information and contextual knowledge.
 
@@ -530,7 +569,7 @@ Extracts factual information and contextual knowledge.
 - Context enrichment
 - Fact verification
 
-### EpisodicMemoryStrategy
+### episodicMemoryStrategy
 
 Captures interactions as structured episodes with scenarios, intents, actions, and outcomes.
 
@@ -552,14 +591,14 @@ Captures interactions as structured episodes with scenarios, intents, actions, a
 
 ## Custom Memory Strategies
 
-Create custom strategies for domain-specific extraction.
+`customMemoryStrategy` does not take a free-form `modelId`/`extractionPrompt`/`consolidationPrompt` at the top level. It wraps a `configuration` that is either an **override** of one of the built-in strategies' extraction/consolidation prompts (`semanticOverride`, `summaryOverride`, `userPreferenceOverride`, `episodicOverride`), or a fully **`selfManagedConfiguration`** (see below) where you own the extraction pipeline entirely.
 
 ```python
 from bedrock_agentcore.memory import MemoryClient
 
 client = MemoryClient(region_name='us-east-1')
 
-# Create memory with custom strategy
+# Override the built-in semantic strategy's extraction prompt
 memory = client.create_memory_and_wait(
     name="DomainMemory",
     strategies=[
@@ -567,63 +606,59 @@ memory = client.create_memory_and_wait(
             "customMemoryStrategy": {
                 "name": "ProductInterestTracker",
                 "namespaces": ["products"],
-                "modelId": "anthropic.claude-sonnet-4-6",
-                "extractionPrompt": """
-                    Analyze the conversation and extract any products
-                    the user has shown interest in. Include:
-                    - Product name
-                    - Level of interest (high/medium/low)
-                    - Any specific requirements mentioned
-
-                    Conversation: {conversation}
-                """,
-                "consolidationPrompt": """
-                    Merge these product interests, updating interest levels
-                    and combining requirements for the same products.
-
-                    Existing: {existing}
-                    New: {new}
-                """
+                "configuration": {
+                    "semanticOverride": {
+                        "extraction": {
+                            "appendToPrompt": (
+                                "Also extract any products the user has shown interest in, "
+                                "including level of interest (high/medium/low) and requirements mentioned."
+                            ),
+                            "modelId": "us.anthropic.claude-haiku-4-5-20251001-v1:0",
+                        }
+                    }
+                },
             }
         }
-    ]
+    ],
 )
 ```
+
+The exact fields inside `extraction`/`consolidation` (beyond `appendToPrompt` and `modelId`) are documented in the `CreateMemory` API reference; treat this example as illustrative of the shape rather than exhaustive.
 
 ---
 
 ## Self-Managed Strategies
 
-For full control over extraction pipelines.
-
-### Setup Requirements
-
-1. **S3 bucket** - For batched event payloads
-2. **SNS topic** - For job notifications
-3. **IAM role** - For AgentCore access
+For full control over extraction pipelines, use `customMemoryStrategy.configuration.selfManagedConfiguration`.
 
 ### Configuration
 
 ```python
 {
-    'selfManagedMemoryStrategy': {
+    'customMemoryStrategy': {
         'name': 'CustomPipeline',
         'namespaces': ['custom'],
-        'triggerConfiguration': {
-            'eventCount': 10,  # Trigger after N events
-            'timeWindow': 3600  # Or after N seconds
+        'configuration': {
+            'selfManagedConfiguration': {
+                'triggerConditions': [
+                    {'messageBasedTrigger': {'messageCount': 10}},
+                ],
+                'invocationConfiguration': {
+                    'topicArn': 'arn:aws:sns:us-east-1:123456789012:memory-jobs',
+                    'payloadDeliveryBucketName': 'my-bucket',
+                },
+                'historicalContextWindowSize': 100,
+            }
         },
-        'payloadDelivery': {
-            's3Bucket': 'my-bucket',
-            's3Prefix': 'memory-payloads/',
-            'snsTopicArn': 'arn:aws:sns:us-east-1:123456789012:memory-jobs'
-        },
-        'historicalContextWindow': 100
     }
 }
 ```
 
+`triggerConditions` also supports `tokenBasedTrigger` (`tokenCount`) and `timeBasedTrigger` (`idleSessionTimeout`) instead of, or alongside, `messageBasedTrigger`.
+
 ### Processing Pipeline
+
+The Lambda subscribed to the SNS topic writes extracted records back with the data-plane `BatchCreateMemoryRecords` API - there is no singular `create_memory_record` call.
 
 ```python
 import boto3
@@ -636,7 +671,6 @@ def lambda_handler(event, context):
     message = json.loads(event['Records'][0]['Sns']['Message'])
 
     s3_location = message['s3PayloadLocation']
-    job_id = message['jobId']
     memory_id = message['memoryId']
 
     # Download payload from S3
@@ -649,27 +683,30 @@ def lambda_handler(event, context):
     data = json.loads(payload['Body'].read())
 
     # Extract memories using your logic
-    memories = extract_memories(data['events'])
+    records = extract_memories(data['events'])
 
-    # Store back to AgentCore
+    # Store back to AgentCore in a single batch call
     client = boto3.client('bedrock-agentcore')
 
-    for memory in memories:
-        client.create_memory_record(
-            memoryId=memory_id,
-            actorId=data['actorId'],
-            namespace='custom',
-            content=memory['content'],
-            metadata=memory['metadata']
-        )
+    client.batch_create_memory_records(
+        memoryId=memory_id,
+        records=[
+            {
+                'namespaces': ['custom'],
+                'content': {'text': record['content']},
+                'metadata': record.get('metadata', {}),
+            }
+            for record in records
+        ],
+    )
 
     return {'statusCode': 200}
 
 def extract_memories(events):
     """Your custom extraction logic."""
-    memories = []
+    records = []
     # Process events and extract insights
-    return memories
+    return records
 ```
 
 ---
@@ -690,33 +727,31 @@ def chat_with_memory(user_id: str, session_id: str, message: str) -> str:
     """Chat with short-term memory context."""
 
     # Get recent conversation history
-    events = memory_client.get_events(
+    turns = memory_client.get_last_k_turns(
         memory_id=memory_id,
         actor_id=user_id,
-        session_id=session_id
+        session_id=session_id,
+        k=10,
     )
 
-    # Build conversation context
-    history = []
-    for event in events:
-        for msg in event.get("messages", []):
-            history.append(msg)
+    # get_last_k_turns returns List[List[Dict]] (a list of turns, each a list
+    # of message dicts), which is not a Strands Messages list. Flatten it into
+    # transcript text and hand that to the agent along with the new message.
+    history = "\n".join(
+        f"{m.get('role','')}: {m.get('content',{}).get('text','')}"
+        for turn in turns for m in turn
+    )
+    response = agent(f"Conversation so far:\n{history}\n\nUser: {message}")
 
-    # Add current message
-    history.append({"role": "user", "content": message})
-
-    # Get agent response
-    response = agent.chat(history)
-
-    # Store the exchange
+    # Store the exchange - messages are (text, role) tuples
     memory_client.create_event(
         memory_id=memory_id,
         actor_id=user_id,
         session_id=session_id,
         messages=[
-            {"role": "user", "content": message},
-            {"role": "assistant", "content": response}
-        ]
+            (message, "USER"),
+            (response, "ASSISTANT"),
+        ],
     )
 
     return response
@@ -736,32 +771,33 @@ def personalized_chat(user_id: str, session_id: str, message: str) -> str:
     # Retrieve relevant long-term memories
     preferences = memory_client.retrieve_memories(
         memory_id=memory_id,
-        actor_id=user_id,
-        query=message,
         namespace="preferences",
-        max_results=5
+        query=message,
+        actor_id=user_id,
+        top_k=5,
     )
 
     facts = memory_client.retrieve_memories(
         memory_id=memory_id,
-        actor_id=user_id,
-        query=message,
         namespace="facts",
-        max_results=5
+        query=message,
+        actor_id=user_id,
+        top_k=5,
     )
 
     # Build personalized context
     context = "User preferences and known facts:\n"
     for pref in preferences:
-        context += f"- {pref['content']}\n"
+        context += f"- {pref['content']['text']}\n"
     for fact in facts:
-        context += f"- {fact['content']}\n"
+        context += f"- {fact['content']['text']}\n"
 
     # Get short-term history
-    events = memory_client.get_events(
+    turns = memory_client.get_last_k_turns(
         memory_id=memory_id,
         actor_id=user_id,
-        session_id=session_id
+        session_id=session_id,
+        k=10,
     )
 
     # Create enhanced prompt
@@ -771,11 +807,10 @@ def personalized_chat(user_id: str, session_id: str, message: str) -> str:
 
 Use this context to provide personalized responses."""
 
-    # Generate response
-    response = agent.chat(
-        messages=[{"role": "user", "content": message}],
-        system_prompt=system_prompt
-    )
+    # Agent.__call__ takes a positional prompt; the system prompt is a
+    # property of the Agent, not a per-call keyword.
+    agent.system_prompt = system_prompt
+    response = agent(message)
 
     # Store interaction for future extraction
     memory_client.create_event(
@@ -783,9 +818,9 @@ Use this context to provide personalized responses."""
         actor_id=user_id,
         session_id=session_id,
         messages=[
-            {"role": "user", "content": message},
-            {"role": "assistant", "content": response}
-        ]
+            (message, "USER"),
+            (response, "ASSISTANT"),
+        ],
     )
 
     return response
@@ -793,60 +828,58 @@ Use this context to provide personalized responses."""
 
 ### Strands Agent with Memory Integration
 
+There is no `bedrock_agentcore.memory.config.AgentCoreMemoryConfig` or `bedrock_agentcore.memory.session.AgentCoreMemorySessionManager` - Strands has no AgentCore-specific memory adapter. Use `MemorySessionManager` directly and pass its context into the agent's prompt.
+
 ```python
 from strands import Agent
 from strands.models import BedrockModel
-from bedrock_agentcore.memory import MemoryClient
-from bedrock_agentcore.memory.config import AgentCoreMemoryConfig
-from bedrock_agentcore.memory.session import AgentCoreMemorySessionManager
+from bedrock_agentcore.memory import MemoryClient, MemorySessionManager
 
-# Initialize memory
+# Create the memory resource once (e.g. during setup, not per-request)
 memory_client = MemoryClient(region_name='us-east-1')
-
-# Create memory with strategies
 memory = memory_client.create_memory_and_wait(
     name="StrandsAgentMemory",
     strategies=[
-        {"strategyName": "SessionSummarizer", "namespaces": ["summaries"]},
-        {"strategyName": "PreferenceLearner", "namespaces": ["preferences"]},
-        {"strategyName": "FactExtractor", "namespaces": ["facts"]}
-    ]
+        {"summaryMemoryStrategy": {"name": "SessionSummarizer", "namespaces": ["summaries"]}},
+        {"userPreferenceMemoryStrategy": {"name": "PreferenceLearner", "namespaces": ["preferences"]}},
+        {"semanticMemoryStrategy": {"name": "FactExtractor", "namespaces": ["facts"]}},
+    ],
 )
 
-# Configure memory for agent
-memory_config = AgentCoreMemoryConfig(
-    memory_id=memory["memoryId"],
-    region_name="us-east-1"
-)
+# Per-session turn tracking and long-term search go through MemorySessionManager
+session_manager = MemorySessionManager(memory_id=memory["memoryId"], region_name="us-east-1")
 
-session_manager = AgentCoreMemorySessionManager(memory_config)
-
-# Create model
 model = BedrockModel(
-    model_id="anthropic.claude-sonnet-4-6",
+    model_id="us.anthropic.claude-haiku-4-5-20251001-v1:0",
     region_name="us-east-1"
 )
 
-# Create agent with memory
 agent = Agent(
     model=model,
-    memory=session_manager,
-    system_prompt="You are a helpful assistant that remembers user preferences."
+    system_prompt="You are a helpful assistant that remembers user preferences.",
 )
 
-# Use the agent
-response = agent("I prefer dark mode and minimal notifications")
-print(response)
+def chat(actor_id: str, session_id: str, message: str) -> str:
+    memories = session_manager.search_long_term_memories(
+        query=message, namespace_prefix=f"preferences/{actor_id}", top_k=5
+    )
+    context = "\n".join(m["content"]["text"] for m in memories)
 
-response = agent("What are my preferences?")  # Agent recalls from memory
-print(response)
+    response = agent(f"Known preferences:\n{context}\n\nUser: {message}")
+
+    session_manager.add_turns(
+        actor_id=actor_id,
+        session_id=session_id,
+        messages=[(message, "USER"), (str(response), "ASSISTANT")],
+    )
+    return str(response)
 ```
 
 ### LangGraph with Memory Checkpointing
 
 ```python
 from langgraph.graph import StateGraph
-from langgraph.checkpoint import MemorySaver
+from langgraph.checkpoint.memory import MemorySaver
 from bedrock_agentcore.memory import MemoryClient
 
 memory_client = MemoryClient(region_name='us-east-1')
@@ -857,17 +890,18 @@ class AgentCoreCheckpointer(MemorySaver):
     def __init__(self, memory_id: str, actor_id: str):
         self.memory_id = memory_id
         self.actor_id = actor_id
-        self.client = MemoryClient()
+        self.client = MemoryClient(region_name='us-east-1')
 
     def get(self, thread_id: str):
         """Get checkpoint from memory."""
-        events = self.client.get_events(
+        turns = self.client.get_last_k_turns(
             memory_id=self.memory_id,
             actor_id=self.actor_id,
-            session_id=thread_id
+            session_id=thread_id,
+            k=1,
         )
-        if events:
-            return events[-1].get("checkpoint")
+        if turns:
+            return turns[-1]
         return None
 
     def put(self, thread_id: str, checkpoint: dict):
@@ -876,8 +910,7 @@ class AgentCoreCheckpointer(MemorySaver):
             memory_id=self.memory_id,
             actor_id=self.actor_id,
             session_id=thread_id,
-            messages=[{"role": "system", "content": "checkpoint"}],
-            metadata={"checkpoint": checkpoint}
+            messages=[(str(checkpoint), "OTHER")],
         )
 
 # Use with LangGraph
@@ -902,9 +935,9 @@ memory_client = MemoryClient(region_name='us-east-1')
 shared_memory = memory_client.create_memory_and_wait(
     name="TeamSharedMemory",
     strategies=[
-        {"strategyName": "FactExtractor", "namespaces": ["shared-facts"]},
-        {"strategyName": "SessionSummarizer", "namespaces": ["handoffs"]}
-    ]
+        {"semanticMemoryStrategy": {"name": "FactExtractor", "namespaces": ["shared-facts"]}},
+        {"summaryMemoryStrategy": {"name": "SessionSummarizer", "namespaces": ["handoffs"]}},
+    ],
 )
 
 memory_id = shared_memory["memoryId"]
@@ -912,33 +945,27 @@ memory_id = shared_memory["memoryId"]
 def agent_handoff(from_agent: str, to_agent: str, context: dict):
     """Hand off conversation between agents."""
 
-    # Store handoff context
+    # Store handoff context as a system-style event
     memory_client.create_event(
         memory_id=memory_id,
         actor_id="system",
         session_id=context["session_id"],
         messages=[
-            {
-                "role": "system",
-                "content": f"Handoff from {from_agent} to {to_agent}",
-                "metadata": {
-                    "from_agent": from_agent,
-                    "to_agent": to_agent,
-                    "reason": context.get("reason"),
-                    "summary": context.get("summary")
-                }
-            }
-        ]
+            (
+                f"Handoff from {from_agent} to {to_agent}: {context.get('summary', '')}",
+                "OTHER",
+            )
+        ],
     )
 
-def get_shared_context(session_id: str, query: str) -> list:
+def get_shared_context(query: str) -> list:
     """Get shared context for any agent."""
 
     facts = memory_client.retrieve_memories(
         memory_id=memory_id,
-        actor_id="system",
+        namespace="shared-facts",
         query=query,
-        namespace="shared-facts"
+        actor_id="system",
     )
 
     return facts
@@ -954,10 +981,10 @@ def get_shared_context(session_id: str, query: str) -> list:
 from bedrock_agentcore.runtime import BedrockAgentCoreApp
 from bedrock_agentcore.memory import MemoryClient
 
-memory_client = MemoryClient()
+memory_client = MemoryClient(region_name='us-east-1')
 app = BedrockAgentCoreApp()
 
-@app.entrypoint()
+@app.entrypoint
 async def main(request):
     user_id = request.get("user_id")
     session_id = request.get("session_id")
@@ -966,8 +993,8 @@ async def main(request):
     # Retrieve context
     memories = memory_client.retrieve_memories(
         memory_id=MEMORY_ID,
-        actor_id=user_id,
-        query=message
+        namespace=f"/facts/{user_id}",
+        query=message,
     )
 
     # Generate response with context
@@ -979,9 +1006,9 @@ async def main(request):
         actor_id=user_id,
         session_id=session_id,
         messages=[
-            {"role": "user", "content": message},
-            {"role": "assistant", "content": response}
-        ]
+            (message, "USER"),
+            (response, "ASSISTANT"),
+        ],
     )
 
     return {"response": response}
@@ -994,9 +1021,9 @@ from opentelemetry import trace
 from bedrock_agentcore.memory import MemoryClient
 
 tracer = trace.get_tracer(__name__)
-memory_client = MemoryClient()
+memory_client = MemoryClient(region_name='us-east-1')
 
-def retrieve_with_tracing(memory_id: str, actor_id: str, query: str):
+def retrieve_with_tracing(memory_id: str, actor_id: str, namespace: str, query: str):
     """Memory retrieval with observability."""
 
     with tracer.start_as_current_span("memory.retrieve") as span:
@@ -1006,8 +1033,9 @@ def retrieve_with_tracing(memory_id: str, actor_id: str, query: str):
 
         memories = memory_client.retrieve_memories(
             memory_id=memory_id,
+            namespace=namespace,
+            query=query,
             actor_id=actor_id,
-            query=query
         )
 
         span.set_attribute("memory.result_count", len(memories))
@@ -1021,48 +1049,30 @@ def retrieve_with_tracing(memory_id: str, actor_id: str, query: str):
 
 ### Branching
 
-Create alternative conversation paths from a specific point.
+There is no `create_branch`/`create_checkpoint`/`restore_checkpoint` on `MemoryClient` - real branching is `fork_conversation`, which creates a named branch from an existing event and adds new messages to it in one call.
 
 ```python
-# Create a branch from a specific event
-branch = memory_client.create_branch(
+# Fork a new branch from a specific event
+branch = memory_client.fork_conversation(
     memory_id=memory_id,
     actor_id=user_id,
     session_id=session_id,
-    from_event_id="event-123",
-    branch_name="alternative-path"
+    root_event_id="event-123",
+    branch_name="alternative-path",
+    new_messages=[("What if we tried option B?", "USER")],
 )
 
-# Continue conversation on branch
-memory_client.create_event(
-    memory_id=memory_id,
-    actor_id=user_id,
-    session_id=branch["branchSessionId"],
-    messages=[{"role": "user", "content": "What if we tried option B?"}]
+# Inspect branches and their events
+branches = memory_client.list_branches(memory_id=memory_id, actor_id=user_id, session_id=session_id)
+branch_events = memory_client.list_branch_events(
+    memory_id=memory_id, actor_id=user_id, session_id=session_id, branch_name="alternative-path"
 )
+
+# See the full tree of branches for a session
+tree = memory_client.get_conversation_tree(memory_id=memory_id, actor_id=user_id, session_id=session_id)
 ```
 
-### Checkpointing
-
-Save and mark specific states for later reference.
-
-```python
-# Create checkpoint
-checkpoint = memory_client.create_checkpoint(
-    memory_id=memory_id,
-    actor_id=user_id,
-    session_id=session_id,
-    checkpoint_name="before-decision",
-    metadata={"state": "awaiting-confirmation"}
-)
-
-# Later, restore to checkpoint
-memory_client.restore_checkpoint(
-    memory_id=memory_id,
-    actor_id=user_id,
-    checkpoint_id=checkpoint["checkpointId"]
-)
-```
+`MemorySessionManager`/`MemorySession` expose the same `fork_conversation` and `list_branches` for session-scoped code, plus `merge_branch_context` to fold a branch's context back into the main line.
 
 ---
 
@@ -1070,7 +1080,7 @@ memory_client.restore_checkpoint(
 
 1. **Design memory architecture intentionally** - Plan namespaces and strategies before implementation.
 
-2. **Use appropriate TTL settings** - Set short-term TTL based on session patterns (hours to days).
+2. **Set retention deliberately** - `eventExpiryDuration` is 3-365 days; there is no separate short-term "TTL in seconds" knob.
 
 3. **Focus on extracting relevant information** - Configure strategies to capture only what's needed.
 
@@ -1086,7 +1096,7 @@ memory_client.restore_checkpoint(
 
 9. **Test with realistic data** - Validate strategies with production-like conversations.
 
-10. **Consider multi-tenancy** - Use actor IDs to isolate user data.
+10. **Consider multi-tenancy** - Use actor IDs and namespace scoping to isolate user data.
 
 ---
 
@@ -1096,23 +1106,22 @@ memory_client.restore_checkpoint(
 
 | Error | Cause | Solution |
 |-------|-------|----------|
-| `MemoryNotFound` | Invalid memory ID | Verify memory exists and is ACTIVE |
-| `ActorNotFound` | No events for actor | Create events before retrieving |
-| `StrategyFailed` | Extraction error | Check CloudWatch logs for details |
-| `QuotaExceeded` | Too many memories | Delete old records or request increase |
-| `ValidationError` | Invalid parameters | Check event format and required fields |
+| `ResourceNotFoundException` | Invalid memory ID | Verify memory exists and is `ACTIVE` |
+| `ValidationException` | Invalid parameters (e.g. `eventExpiryDuration` out of 3-365 range) | Check event format and required fields |
+| Extraction never runs | Not enough events, or strategy not `ACTIVE` | Check strategy status and event volume |
+| `ThrottlingException` | Rate limit exceeded | Implement exponential backoff |
 
 ### Debugging Tips
 
 ```bash
 # Check memory status
-agentcore memory get --name MyMemory
+agentcore memory status mem-abc123xyz
 
-# View extraction logs
-aws logs tail /aws/bedrock-agentcore/memories/<memory_id> --follow
+# Inspect actors, sessions, events, and extracted records interactively
+agentcore memory show mem-abc123xyz
 
-# List events for debugging
-aws bedrock-agentcore get-events \
+# List events for debugging (boto3, not a fictional CLI subcommand)
+aws bedrock-agentcore list-events \
     --memory-id mem-abc123 \
     --actor-id user-123 \
     --session-id session-456
@@ -1120,10 +1129,10 @@ aws bedrock-agentcore get-events \
 
 ### Strategy Not Extracting
 
-1. Verify strategy status is ACTIVE
+1. Verify strategy status is `ACTIVE`
 2. Check enough events exist to trigger extraction
 3. Review CloudWatch logs for extraction errors
-4. Ensure events have proper message format
+4. Ensure events have proper message format (`(text, role)` tuples via the SDK, or `payload` list items via boto3)
 
 ---
 
@@ -1136,9 +1145,11 @@ aws bedrock-agentcore get-events \
 | Events per session | 10,000 | Yes |
 | Memory records per actor | 100,000 | Yes |
 | Event payload size | 256 KB | No |
-| Short-term TTL (max) | 30 days | No |
+| Event retention (`eventExpiryDuration`) | 3-365 days | N/A (bounded range, not a single max) |
 | Retrieval results (max) | 100 | No |
 | Concurrent extractions | 10 | Yes |
+
+These per-resource limits have not been individually re-verified against the live AWS quota tables in this pass beyond `eventExpiryDuration` (confirmed 3-365 days from the `CreateMemory` API model); treat the others as carried forward from the prior version of this doc.
 
 ---
 
@@ -1161,7 +1172,7 @@ aws bedrock-agentcore get-events \
 
 ### Cost Optimization Tips
 
-1. **Set appropriate TTL** - Don't store short-term events longer than needed.
+1. **Set appropriate retention** - Don't retain events longer than needed (`eventExpiryDuration`).
 2. **Optimize retrieval** - Use namespaces to filter and reduce search scope.
 3. **Batch events** - Combine multiple turns into single events when possible.
 4. **Monitor extraction** - Track strategy costs in CloudWatch.

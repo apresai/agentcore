@@ -2,7 +2,7 @@
 
 > Cedar-based deterministic access control for AI agents
 
-**Status: Preview** (No charges during preview)
+**Status: GA** (generally available 2026-03-03)
 
 ## Overview
 
@@ -55,86 +55,116 @@ AgentCore Policy enables developers to define and enforce security controls for 
 
 ## Quick Start
 
-### Create Policy from Natural Language
+`bedrock_agentcore.policy` exports `PolicyEngineClient`, not `PolicyClient`. Policies belong to a **policy engine** (create one first), and its methods take `policy_engine_id=`, not `gateway_id=` - attaching that engine to a gateway is a separate step.
+
+### Create a Policy Engine
 
 ```python
-from bedrock_agentcore.policy import PolicyClient
+from bedrock_agentcore.policy import PolicyEngineClient
 
-policy = PolicyClient()
+policy = PolicyEngineClient(region_name="us-east-1")
 
-# Describe policy in plain English
-policy.create_from_description(
-    gateway_id="my-gateway",
-    description="""
-    Allow agents to read customer data only if:
-    - The requesting user owns the customer record, OR
-    - The requesting user is a support agent
+engine = policy.create_or_get_policy_engine(name="CustomerDataPolicyEngine")
+engine_id = engine["policyEngineId"]
+```
 
-    Deny all write operations on customer data except:
-    - Support agents can update contact information
-    - Managers can update any field
-    """
+### Create Policy from Natural Language
+
+There is no `create_from_description()` - natural-language authoring is `generate_and_create_policy()`, which generates Cedar from the description and creates the policy in one step:
+
+```python
+policy.generate_and_create_policy(
+    policy_engine_id=engine_id,
+    generation_name="customer-data-access-gen",
+    policy_name="customer-data-access",
+    resource={"arn": "arn:aws:bedrock-agentcore:us-east-1:123456789012:gateway/gw-abc123"},
+    content={
+        "rawText": """
+        Allow agents to read customer data only if:
+        - The requesting user owns the customer record, OR
+        - The requesting user is a support agent
+
+        Deny all write operations on customer data except:
+        - Support agents can update contact information
+        - Managers can update any field
+        """
+    },
 )
 ```
 
 ### Create Cedar Policy Directly
 
+There is no `create_from_cedar()` - write Cedar through `create_or_get_policy()`'s `definition={"cedar": {"statement": ...}}`:
+
 ```python
-# Write Cedar policy
-policy.create_from_cedar(
-    gateway_id="my-gateway",
-    policy="""
-    // Allow users to read their own data
-    permit(
-        principal,
-        action == Action::"read",
-        resource
-    ) when {
-        resource.owner == principal.user_id
-    };
+policy.create_or_get_policy(
+    policy_engine_id=engine_id,
+    name="customer-data-read-write",
+    definition={
+        "cedar": {
+            "statement": """
+            // Allow users to read their own data
+            permit(
+                principal,
+                action == Action::"read",
+                resource
+            ) when {
+                resource.owner == principal.user_id
+            };
 
-    // Allow support agents to read any customer
-    permit(
-        principal in Group::"support-agents",
-        action == Action::"read",
-        resource in ResourceType::"customer"
-    );
+            // Allow support agents to read any customer
+            permit(
+                principal in Group::"support-agents",
+                action == Action::"read",
+                resource in ResourceType::"customer"
+            );
 
-    // Deny write by default
-    forbid(
-        principal,
-        action == Action::"write",
-        resource
-    ) unless {
-        principal in Group::"managers"
-    };
-    """
+            // Deny write by default
+            forbid(
+                principal,
+                action == Action::"write",
+                resource
+            ) unless {
+                principal in Group::"managers"
+            };
+            """
+        }
+    },
 )
 ```
 
-### Test Policy
+### Test Policy Before Enforcing
+
+There is no `policy.test()` method - test by attaching the engine to the gateway in `LOG_ONLY` mode, calling the gateway's tools for real, and checking the responses, then flip to `ENFORCE` once satisfied:
 
 ```python
-# Test policy before deploying
-result = policy.test(
-    policy_id="my-policy",
-    test_cases=[
-        {
-            "principal": {"user_id": "user-123", "groups": ["support-agents"]},
-            "action": "read",
-            "resource": {"type": "customer", "id": "cust-456"},
-            "expected": "ALLOW"
-        },
-        {
-            "principal": {"user_id": "user-123", "groups": []},
-            "action": "write",
-            "resource": {"type": "customer", "id": "cust-456"},
-            "expected": "DENY"
-        }
-    ]
-)
+def set_policy_mode(control_client, gateway_id: str, engine_arn: str, mode: str):
+    """UpdateGateway is not a sparse patch: name, roleArn and authorizerType are
+    required on every call, so read the current configuration back first."""
+    gw = control_client.get_gateway(gatewayIdentifier=gateway_id)
+    kwargs = {
+        "gatewayIdentifier": gateway_id,
+        "name": gw["name"],
+        "roleArn": gw["roleArn"],
+        "authorizerType": gw["authorizerType"],
+        "policyEngineConfiguration": {"arn": engine_arn, "mode": mode},
+    }
+    if gw.get("authorizerConfiguration"):
+        kwargs["authorizerConfiguration"] = gw["authorizerConfiguration"]
+    return control_client.update_gateway(**kwargs)
 
-print(f"Tests passed: {result.passed}/{result.total}")
+
+import boto3
+
+control_client = boto3.client('bedrock-agentcore-control', region_name='us-east-1')
+
+# Attach in LOG_ONLY mode - decisions are logged but never block a call
+set_policy_mode(control_client, "gw-abc123", engine["policyEngineArn"], "LOG_ONLY")
+
+# ... call the gateway's tools over MCP and check the responses ...
+
+# Once satisfied, switch to enforcement
+set_policy_mode(control_client, "gw-abc123", engine["policyEngineArn"], "ENFORCE")
 ```
 
 ## Cedar Policy Examples
@@ -217,34 +247,38 @@ Output:
 
 ## Integration with Gateway
 
-```python
-# Policies automatically apply to Gateway tools
-gateway.invoke_tool(
-    tool_name="get_customer",
-    input={"customer_id": "cust-123"},
-    # Context automatically includes:
-    # - User identity from Identity service
-    # - Agent identity
-    # - Request parameters
-)
+Once a policy engine is attached in `ENFORCE` mode, every MCP tool call through that gateway is evaluated automatically - there is no per-call opt-in and, since Gateway has no data-plane boto3 API, no `gateway.invoke_tool()` call to attach the policy to in the first place (see [AgentCore Gateway](gateway.md)). Denied calls come back as MCP errors to the caller:
 
-# Policy evaluates before tool executes
-# If DENY, tool call is blocked with reason
+```python
+set_policy_mode(control_client, "gw-abc123", engine["policyEngineArn"], "ENFORCE")
+
+# Every subsequent call_tool() over MCP against this gateway is now
+# evaluated against the attached policy engine before the target executes.
 ```
 
 ## Monitoring
 
+There is no `policy.list_decisions()` - decisions are logged to CloudWatch, queried like any other log group:
+
 ```python
-# View policy decisions in CloudWatch
-decisions = policy.list_decisions(
-    policy_id="my-policy",
-    start_time=datetime.now() - timedelta(hours=1)
+import time
+import boto3
+import json
+
+logs_client = boto3.client('logs', region_name='us-east-1')
+
+response = logs_client.filter_log_events(
+    logGroupName='/aws/bedrock-agentcore/policy-decisions',
+    filterPattern='{ $.decision = "DENY" }',
+    startTime=int((time.time() - 3600) * 1000),
+    limit=100,
 )
 
-for decision in decisions:
-    print(f"{decision.timestamp}: {decision.action} - {decision.result}")
-    if decision.result == "DENY":
-        print(f"  Reason: {decision.reason}")
+for event in response['events']:
+    log = json.loads(event['message'])
+    print(f"{log['timestamp']}: {log['action']} - {log['decision']}")
+    if log['decision'] == 'DENY':
+        print(f"  Reason: {log.get('reason', 'N/A')}")
 ```
 
 ## Use Cases
@@ -259,7 +293,7 @@ for decision in decisions:
 
 ## Pricing
 
-**No charges during Preview.**
+Billed per one million user input tokens processed for authorization requests during agent execution.
 
 ## Related
 

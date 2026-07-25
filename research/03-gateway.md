@@ -8,22 +8,27 @@
 |-------------|-------------|
 | `agentcore gateway create-mcp-gateway` | Create new gateway |
 | `agentcore gateway create-mcp-gateway-target` | Add target to gateway |
-| `agentcore gateway list` | List all gateways |
-| `agentcore gateway delete` | Delete gateway |
+| `agentcore gateway list-mcp-gateways` | List all gateways |
+| `agentcore gateway get-mcp-gateway` | Get details for a gateway |
+| `agentcore gateway update-gateway` | Update gateway description / policy engine |
+| `agentcore gateway delete-mcp-gateway` | Delete a gateway |
+| `agentcore gateway list-mcp-gateway-targets` | List targets for a gateway |
+| `agentcore gateway get-mcp-gateway-target` | Get details for a target |
+| `agentcore gateway delete-mcp-gateway-target` | Delete a target |
 
 | SDK Client | Purpose |
 |------------|---------|
-| `GatewayClient` (AgentCore SDK) | High-level gateway operations |
-| `bedrock-agentcore` (data plane) | Call tools, list tools |
-| `bedrock-agentcore-control` (control plane) | Manage gateway resources |
+| `GatewayClient` (AgentCore SDK) | Create/get/list/update/delete gateways and targets |
+| `bedrock-agentcore-control` (control plane) | Manage gateway resources directly via boto3 |
 
 | Key API | Description |
 |---------|-------------|
 | `CreateGateway` | Create gateway resource |
 | `CreateGatewayTarget` | Add tool target |
-| `ListTools` | List available MCP tools |
-| `CallTool` | Invoke MCP tool |
-| `Ping` | Health check |
+| `GetGateway` / `ListGateways` | Read gateway resources |
+| `UpdateGateway` / `DeleteGateway` | Manage gateway resources |
+
+There is no `bedrock-agentcore` **data-plane** API for gateways - no `ListTools`, `CallTool`, or `Ping` operation exists in boto3. Once a gateway is created, agents call its tools by speaking MCP directly to the gateway's URL (see "Calling Tools via MCP" below), not through a boto3 call.
 
 ---
 
@@ -49,24 +54,26 @@ A gateway is the central endpoint that agents connect to for tool access. It:
 
 ### Targets
 
-Targets define how the gateway routes requests to specific tools:
-- **Lambda targets** - AWS Lambda functions
-- **OpenAPI targets** - REST APIs with OpenAPI specs
-- **Smithy targets** - APIs defined with Smithy models
-- **MCP Server targets** - External MCP servers
+Targets define how the gateway routes requests to specific tools. The real target types (`targetConfiguration.mcp.*` in `CreateGatewayTarget`) are:
+- **`lambda`** - AWS Lambda functions
+- **`openApiSchema`** - REST APIs described by an OpenAPI spec
+- **`smithyModel`** - APIs defined with Smithy models
+- **`mcpServer`** - External MCP servers
+- **`apiGateway`** - Amazon API Gateway APIs
+- **`connector`** - AWS's pre-built connector catalog (Salesforce, Slack, Jira, etc. - see "1-Click Integrations" below)
 
 ### Tool Discovery
 
 Gateway supports intelligent tool discovery:
-- **ListTools** - Enumerate all available tools
-- **Semantic search** - Find tools by natural language description
+- **`tools/list`** (MCP) - Enumerate all available tools
+- **Semantic search** - Set `protocolConfiguration.mcp.searchType='SEMANTIC'` on the gateway to have it rank tools by natural-language relevance during `tools/list`
 - Agents dynamically select appropriate tools based on context
 
 ### Authentication
 
 Gateway handles dual-sided security:
-- **Inbound auth** - Verify agent/user identity (OAuth, JWT, IAM)
-- **Outbound auth** - Connect to backend services (OAuth, API keys)
+- **Inbound auth** - Verify agent/user identity (`AWS_IAM`, `CUSTOM_JWT`, `NONE`, or `AUTHENTICATE_ONLY`)
+- **Outbound auth** - Connect to backend services (OAuth2, API key, or IAM SigV4 credential providers)
 
 ---
 
@@ -90,33 +97,25 @@ agentcore gateway create-mcp-gateway [OPTIONS]
 
 | Option | Description | Default |
 |--------|-------------|---------|
-| `--name` | Gateway name | Required |
-| `--region` | AWS region | us-east-1 |
-| `--enable-semantic-search` | Enable semantic tool discovery | false |
-| `--role-arn` | Custom IAM role ARN | auto-created |
-| `--authorizer-type` | Auth type (IAM, CUSTOM_JWT, NONE) | IAM |
+| `--region` | AWS region | us-west-2 |
+| `--name` | Gateway name | `TestGateway` |
+| `--role-arn` | IAM role ARN (created if omitted) | auto-created |
+| `--authorizer-config` | Serialized authorizer config JSON (created if omitted) | auto-created |
+| `--enable_semantic_search`, `-sem` | Enable the semantic search tool | true |
 
 **Examples:**
 
 ```bash
-# Basic gateway with IAM auth
+# Basic gateway, everything auto-created
 agentcore gateway create-mcp-gateway --name MyGateway --region us-east-1
 
-# With semantic search
-agentcore gateway create-mcp-gateway \
-    --name MyGateway \
-    --region us-east-1 \
-    --enable-semantic-search
-
-# With custom role
-agentcore gateway create-mcp-gateway \
-    --name MyGateway \
-    --role-arn arn:aws:iam::123456789012:role/MyGatewayRole
+# Disable semantic search
+agentcore gateway create-mcp-gateway --name MyGateway --enable_semantic_search=false
 ```
 
 ### agentcore gateway create-mcp-gateway-target
 
-Add a target to an existing gateway.
+Add a target to an existing gateway. Unlike gateway creation, this needs the gateway's ARN, URL, and role ARN explicitly - there is no `--gateway-id` shortcut.
 
 ```bash
 agentcore gateway create-mcp-gateway-target [OPTIONS]
@@ -126,71 +125,88 @@ agentcore gateway create-mcp-gateway-target [OPTIONS]
 
 | Option | Description | Default |
 |--------|-------------|---------|
-| `--gateway-id` | Gateway ID | Required |
-| `--name` | Target name | Required |
-| `--type` | Target type (lambda, openapi, smithy, mcp) | Required |
-| `--lambda-arn` | Lambda function ARN | For lambda type |
-| `--openapi-spec` | Path to OpenAPI spec | For openapi type |
-| `--endpoint-url` | API endpoint URL | For openapi/mcp type |
+| `--gateway-arn` | ARN of the gateway (required) | - |
+| `--gateway-url` | URL of the gateway (required) | - |
+| `--role-arn` | IAM role ARN of the gateway (required) | - |
+| `--region` | AWS region | us-west-2 |
+| `--name` | Target name | `TestGatewayTarget` |
+| `--target-type` | `lambda`, `openApiSchema`, `mcpServer`, or `smithyModel` | `lambda` |
+| `--target-payload` | Target specification JSON (required for `openApiSchema`) | - |
+| `--credentials` | Credentials JSON for target access (`openApiSchema` only) | - |
 
 **Examples:**
 
 ```bash
 # Lambda target
 agentcore gateway create-mcp-gateway-target \
-    --gateway-id gw-abc123 \
+    --gateway-arn arn:aws:bedrock-agentcore:us-east-1:123456789012:gateway/gw-abc123 \
+    --gateway-url https://gw-abc123.gateway.bedrock-agentcore.us-east-1.amazonaws.com/mcp \
+    --role-arn arn:aws:iam::123456789012:role/MyGatewayRole \
     --name WeatherTool \
-    --type lambda \
-    --lambda-arn arn:aws:lambda:us-east-1:123456789012:function:GetWeather
-
-# OpenAPI target
-agentcore gateway create-mcp-gateway-target \
-    --gateway-id gw-abc123 \
-    --name StockAPI \
-    --type openapi \
-    --openapi-spec ./openapi.yaml \
-    --endpoint-url https://api.example.com
-
-# External MCP server
-agentcore gateway create-mcp-gateway-target \
-    --gateway-id gw-abc123 \
-    --name ExternalMCP \
-    --type mcp \
-    --endpoint-url https://mcp.example.com
+    --target-type lambda \
+    --target-payload '{"lambdaArn": "arn:aws:lambda:us-east-1:123456789012:function:GetWeather", "toolSchema": {"inlinePayload": [{"name": "get_weather", "description": "Get current weather", "inputSchema": {"type": "object", "properties": {"location": {"type": "string"}}, "required": ["location"]}}]}}'
 ```
 
-### agentcore gateway list
+`--target-type` values are case-sensitive and camelCase (`openApiSchema`, not `openapi`); `apiGateway` and `connector` targets are not exposed through this CLI command and must be created via the SDK or `create_gateway_target` boto3 call.
 
-List all gateways.
+### agentcore gateway list-mcp-gateways
 
 ```bash
-agentcore gateway list
-
-# Output
-NAME          STATUS    TARGETS    SEMANTIC_SEARCH
-MyGateway     ACTIVE    3          enabled
-TestGateway   ACTIVE    1          disabled
+agentcore gateway list-mcp-gateways [OPTIONS]
 ```
 
-### agentcore gateway delete
+| Option | Description | Default |
+|--------|-------------|---------|
+| `--region` | AWS region | - |
+| `--name` | Filter by gateway name | - |
+| `--max-results`, `-m` | Max results (1-1000) | 50 |
 
-Delete a gateway.
+### agentcore gateway get-mcp-gateway / delete-mcp-gateway
+
+Both take the gateway by ID, ARN, or name:
 
 ```bash
-agentcore gateway delete --gateway-id gw-abc123 --force
+agentcore gateway get-mcp-gateway --id gw-abc123
+agentcore gateway get-mcp-gateway --name MyGateway
+
+agentcore gateway delete-mcp-gateway --id gw-abc123 --force
 ```
+
+`delete-mcp-gateway --force` deletes all targets before deleting the gateway; without it, deletion fails if the gateway still has targets.
+
+### agentcore gateway update-gateway
+
+Updates description and policy engine attachment only - gateway names cannot be changed after creation.
+
+```bash
+agentcore gateway update-gateway --id gw-abc123 \
+    --description "Updated description" \
+    --policy-engine-arn arn:aws:bedrock-agentcore:us-east-1:123456789012:policy-engine/pe-abc123 \
+    --policy-engine-mode ENFORCE
+```
+
+`--policy-engine-mode` accepts `LOG_ONLY` or `ENFORCE`.
 
 ---
 
 ## SDK Reference
 
-### Using AgentCore SDK (Recommended)
+### GatewayClient
 
 ```python
 from bedrock_agentcore.gateway import GatewayClient
 
 client = GatewayClient(region_name='us-east-1')
 ```
+
+`GatewayClient` takes `region_name`, not `gateway_id` - it manages gateways and targets by ID/ARN/name per call, it is not scoped to one gateway. Its real surface is:
+
+- **Pass-through boto3 methods** (accept camelCase or snake_case kwargs): `create_gateway`, `get_gateway`, `list_gateways`, `update_gateway`, `delete_gateway`, `create_gateway_target`, `get_gateway_target`, `list_gateway_targets`, `update_gateway_target`, `delete_gateway_target`.
+- **`*_and_wait` variants** that block until the resource reaches a terminal state: `create_gateway_and_wait`, `update_gateway_and_wait`, `delete_gateway_and_wait`, `create_gateway_target_and_wait`, `update_gateway_target_and_wait`, `delete_gateway_target_and_wait`.
+- **`create_knowledge_base_target(gateway_identifier, knowledge_base_id, name=None, ...)`** and **`create_agentic_retrieve_target(gateway_identifier, retrievers, model_arn, name=None, ...)`** - two purpose-built target constructors.
+- **`get_gateway_by_name(name)`** and **`get_gateway_target_by_name(gateway_identifier, name)`** - lookup by name instead of ID.
+
+Any other method name (`list_tools`, `call_tool`, `search_tools`, `create_target`, `create_from_openapi`, `create_from_lambda`, `enable_integration`, `connect_mcp_server`, `index_tools`) raises `AttributeError` - the client does not proxy tool calls, only resource management.
 
 #### Create Gateway
 
@@ -199,119 +215,165 @@ from bedrock_agentcore.gateway import GatewayClient
 
 client = GatewayClient(region_name='us-east-1')
 
-# Create basic gateway
-gateway = client.create_gateway(
+# Waits for the gateway to reach READY (or raises on FAILED)
+gateway = client.create_gateway_and_wait(
     name="MyGateway",
-    authorizer_type="IAM",
-    enable_semantic_search=True
+    roleArn="arn:aws:iam::123456789012:role/GatewayRole",
+    authorizerType="AWS_IAM",
+    protocolType="MCP",
+    protocolConfiguration={"mcp": {"searchType": "SEMANTIC"}},
 )
 
 gateway_id = gateway["gatewayId"]
 gateway_arn = gateway["gatewayArn"]
+gateway_url = gateway["gatewayUrl"]
 ```
 
 #### Add Lambda Target
 
 ```python
-# Add Lambda function as tool
-target = client.create_target(
-    gateway_id=gateway_id,
+# Add a Lambda function as a tool target
+target = client.create_gateway_target_and_wait(
+    gatewayIdentifier=gateway_id,
     name="WeatherTool",
-    target_type="lambda",
-    lambda_config={
-        "functionArn": "arn:aws:lambda:us-east-1:123456789012:function:GetWeather",
-        "toolSchema": {
-            "name": "get_weather",
-            "description": "Get current weather for a location",
-            "inputSchema": {
-                "type": "object",
-                "properties": {
-                    "location": {"type": "string", "description": "City name"},
-                    "units": {"type": "string", "enum": ["celsius", "fahrenheit"]}
+    targetConfiguration={
+        "mcp": {
+            "lambda": {
+                "lambdaArn": "arn:aws:lambda:us-east-1:123456789012:function:GetWeather",
+                "toolSchema": {
+                    "inlinePayload": [
+                        {
+                            "name": "get_weather",
+                            "description": "Get current weather for a location",
+                            "inputSchema": {
+                                "type": "object",
+                                "properties": {
+                                    "location": {"type": "string", "description": "City name"},
+                                },
+                                "required": ["location"],
+                            },
+                        }
+                    ]
                 },
-                "required": ["location"]
             }
         }
-    }
+    },
 )
 ```
 
 #### Add OpenAPI Target
 
 ```python
-# Add REST API via OpenAPI spec
-target = client.create_target(
-    gateway_id=gateway_id,
+# Add a REST API via an OpenAPI spec staged in S3
+target = client.create_gateway_target_and_wait(
+    gatewayIdentifier=gateway_id,
     name="StockAPI",
-    target_type="openapi",
-    openapi_config={
-        "specificationS3Location": {
-            "bucket": "my-bucket",
-            "key": "specs/stock-api.yaml"
-        },
-        "endpointUrl": "https://api.stocks.example.com",
-        "authConfig": {
-            "type": "API_KEY",
-            "credentialProviderArn": "arn:aws:bedrock-agentcore:us-east-1:123456789012:credential-provider/stock-api-key"
+    targetConfiguration={
+        "mcp": {
+            "openApiSchema": {
+                "s3": {"uri": "s3://my-bucket/specs/stock-api.yaml"},
+            }
         }
-    }
+    },
+    credentialProviderConfigurations=[
+        {
+            "credentialProviderType": "API_KEY",
+            "credentialProvider": {
+                "apiKeyCredentialProvider": {
+                    "providerArn": "arn:aws:bedrock-agentcore:us-east-1:123456789012:credential-provider/stock-api-key",
+                }
+            },
+        }
+    ],
 )
 ```
 
-#### List Tools
+#### Add a Knowledge Base Target
 
 ```python
-# Get all available tools from gateway
-tools = client.list_tools(gateway_id=gateway_id)
-
-for tool in tools:
-    print(f"Tool: {tool['name']}")
-    print(f"Description: {tool['description']}")
-    print(f"Input schema: {tool['inputSchema']}")
-```
-
-#### Call Tool
-
-```python
-# Invoke a tool through the gateway
-result = client.call_tool(
-    gateway_id=gateway_id,
-    tool_name="get_weather",
-    arguments={"location": "Seattle", "units": "fahrenheit"}
+# Purpose-built helper - not a generic targetConfiguration call
+target = client.create_knowledge_base_target(
+    gateway_identifier=gateway_id,
+    knowledge_base_id="my-kb-id",
+    name="docs-kb",
+    description="Product documentation knowledge base",
 )
-
-print(f"Result: {result['content']}")
 ```
 
-#### Semantic Search for Tools
+#### List and Get Gateways
 
 ```python
-# Find tools by natural language query
-tools = client.search_tools(
-    gateway_id=gateway_id,
-    query="How can I get stock prices?",
-    max_results=5
-)
+# Pass-through to boto3 list_gateways/get_gateway
+for gw in client.list_gateways(maxResults=50)["items"]:
+    print(f"{gw['name']}: {gw['status']}")
 
-for tool in tools:
-    print(f"Tool: {tool['name']} (score: {tool['score']})")
+gw = client.get_gateway(gatewayIdentifier=gateway_id)
+print(gw["status"])  # CREATING, ACTIVE (or READY), FAILED
+
+# Or look it up by name
+gw = client.get_gateway_by_name("MyGateway")
 ```
 
-### Using boto3 Directly
+### Calling Tools via MCP
+
+Gateway has no data-plane boto3 API - agents call its tools by speaking MCP over HTTP against `gateway["gatewayUrl"]`. With Strands, use its built-in `MCPClient` over the `mcp` package's streamable-HTTP transport:
+
+```python
+from strands.tools.mcp import MCPClient
+from mcp.client.streamable_http import streamablehttp_client
+
+def make_mcp_client(gateway_url: str, bearer_token: str) -> MCPClient:
+    return MCPClient(
+        lambda: streamablehttp_client(
+            gateway_url,
+            headers={"Authorization": f"Bearer {bearer_token}"},
+        )
+    )
+
+mcp_client = make_mcp_client(gateway_url, bearer_token)
+
+with mcp_client:
+    tools = mcp_client.list_tools_sync()
+    for tool in tools:
+        print(tool.tool_name)
+
+    result = mcp_client.call_tool_sync(
+        tool_use_id="call-1",
+        name="get_weather",
+        arguments={"location": "Seattle"},
+    )
+```
+
+For an `authorizerType='AWS_IAM'` gateway, sign the HTTP request with SigV4 instead of a bearer token (e.g. via `httpx` + `botocore.auth.SigV4Auth`, or `requests-auth-aws-sigv4`) rather than passing an `Authorization: Bearer` header.
+
+Outside Strands, the raw `mcp` client SDK works the same way against any framework:
+
+```python
+from mcp import ClientSession
+from mcp.client.streamable_http import streamablehttp_client
+
+async def list_and_call(gateway_url: str, bearer_token: str):
+    async with streamablehttp_client(
+        gateway_url, headers={"Authorization": f"Bearer {bearer_token}"}
+    ) as (read, write, _):
+        async with ClientSession(read, write) as session:
+            await session.initialize()
+            tools = await session.list_tools()
+            result = await session.call_tool("get_weather", {"location": "Seattle"})
+            return tools, result
+```
+
+---
+
+## Using boto3 Directly
 
 ```python
 import boto3
 
-# Control plane
 control_client = boto3.client('bedrock-agentcore-control', region_name='us-east-1')
-
-# Data plane
-data_client = boto3.client('bedrock-agentcore', region_name='us-east-1')
 ```
 
-#### Control Plane APIs
-
-##### CreateGateway
+#### CreateGateway
 
 ```python
 response = control_client.create_gateway(
@@ -320,15 +382,15 @@ response = control_client.create_gateway(
     roleArn='arn:aws:iam::123456789012:role/GatewayRole',
     authorizerType='CUSTOM_JWT',
     authorizerConfiguration={
-        'customJwtAuthorizerConfig': {
+        'customJWTAuthorizer': {
             'discoveryUrl': 'https://cognito-idp.us-east-1.amazonaws.com/us-east-1_xxxxx/.well-known/openid-configuration',
-            'allowedAudiences': ['my-app-client-id'],
+            'allowedAudience': ['my-app-client-id'],
             'allowedClients': ['my-app-client-id']
         }
     },
     protocolType='MCP',
-    searchConfiguration={
-        'searchType': 'SEMANTIC'  # Enable semantic search
+    protocolConfiguration={
+        'mcp': {'searchType': 'SEMANTIC'}  # Enable semantic search
     },
     tags={
         'Environment': 'production'
@@ -345,40 +407,46 @@ gateway_arn = response['gatewayArn']
 |-----------|------|----------|-------------|
 | `name` | string | Yes | Gateway name (1-48 chars) |
 | `roleArn` | string | Yes | IAM execution role ARN |
-| `authorizerType` | string | Yes | IAM, CUSTOM_JWT, or NONE |
-| `protocolType` | string | Yes | MCP (default) |
-| `authorizerConfiguration` | object | Conditional | Required for CUSTOM_JWT |
-| `searchConfiguration` | object | No | Enable semantic search |
+| `authorizerType` | string | Yes | `AWS_IAM`, `CUSTOM_JWT`, `NONE`, or `AUTHENTICATE_ONLY` |
+| `protocolType` | string | No | `MCP` (default) |
+| `authorizerConfiguration` | object | Conditional | Required for `CUSTOM_JWT` - key is `customJWTAuthorizer` |
+| `protocolConfiguration` | object | No | `{'mcp': {'searchType': 'SEMANTIC', ...}}` to enable semantic search |
 | `description` | string | No | Description |
 | `tags` | dict | No | Resource tags |
 
+`authorizerType='IAM'` and top-level `searchConfiguration` do not exist - the values are `AWS_IAM` and `protocolConfiguration.mcp.searchType` respectively.
+
 ##### CreateGatewayTarget
+
+Target configuration is nested under `targetConfiguration.mcp.<type>` - there is no flat `lambdaTargetConfiguration`/`openApiTargetConfiguration` key, and the Lambda tool schema is a list under `toolSchema.inlinePayload`, not a `{'tools': [...]}` wrapper.
 
 ```python
 # Lambda target
 response = control_client.create_gateway_target(
-    gatewayId='gw-abc123xyz',
+    gatewayIdentifier='gw-abc123xyz',
     name='CalculatorTool',
     targetConfiguration={
-        'lambdaTargetConfiguration': {
-            'lambdaArn': 'arn:aws:lambda:us-east-1:123456789012:function:Calculator',
-            'toolSchema': {
-                'tools': [
-                    {
-                        'name': 'calculate',
-                        'description': 'Perform mathematical calculations',
-                        'inputSchema': {
-                            'type': 'object',
-                            'properties': {
-                                'expression': {
-                                    'type': 'string',
-                                    'description': 'Mathematical expression to evaluate'
-                                }
-                            },
-                            'required': ['expression']
+        'mcp': {
+            'lambda': {
+                'lambdaArn': 'arn:aws:lambda:us-east-1:123456789012:function:Calculator',
+                'toolSchema': {
+                    'inlinePayload': [
+                        {
+                            'name': 'calculate',
+                            'description': 'Perform mathematical calculations',
+                            'inputSchema': {
+                                'type': 'object',
+                                'properties': {
+                                    'expression': {
+                                        'type': 'string',
+                                        'description': 'Mathematical expression to evaluate'
+                                    }
+                                },
+                                'required': ['expression']
+                            }
                         }
-                    }
-                ]
+                    ]
+                }
             }
         }
     }
@@ -390,32 +458,40 @@ target_id = response['targetId']
 ```python
 # OpenAPI target
 response = control_client.create_gateway_target(
-    gatewayId='gw-abc123xyz',
+    gatewayIdentifier='gw-abc123xyz',
     name='CRMTools',
     targetConfiguration={
-        'openApiTargetConfiguration': {
-            'openApiSpecificationS3Location': {
-                'bucket': 'my-specs-bucket',
-                'key': 'crm-api.yaml'
-            },
-            'endpointConfiguration': {
-                'url': 'https://crm.example.com/api/v1'
-            },
-            'credentialProviderArn': 'arn:aws:bedrock-agentcore:us-east-1:123456789012:credential-provider/crm-oauth'
+        'mcp': {
+            'openApiSchema': {
+                's3': {'uri': 's3://my-specs-bucket/crm-api.yaml'}
+            }
         }
-    }
+    },
+    credentialProviderConfigurations=[
+        {
+            'credentialProviderType': 'OAUTH',
+            'credentialProvider': {
+                'oauthCredentialProvider': {
+                    'providerArn': 'arn:aws:bedrock-agentcore:us-east-1:123456789012:credential-provider/crm-oauth',
+                    'scopes': ['api'],
+                }
+            }
+        }
+    ]
 )
 ```
+
+`credentialProviderArn` is not a field of the target configuration itself; outbound credentials are attached via the top-level `credentialProviderConfigurations` list, keyed by `credentialProviderType` (`OAUTH`, `API_KEY`, or `IAM`).
 
 ##### GetGateway
 
 ```python
 response = control_client.get_gateway(
-    gatewayId='gw-abc123xyz'
+    gatewayIdentifier='gw-abc123xyz'
 )
 
 status = response['status']  # CREATING, ACTIVE, FAILED
-endpoint = response['gatewayEndpoint']
+endpoint = response['gatewayUrl']
 ```
 
 ##### ListGateways
@@ -425,7 +501,7 @@ response = control_client.list_gateways(
     maxResults=50
 )
 
-for gateway in response['gatewaySummaries']:
+for gateway in response['items']:
     print(f"{gateway['name']}: {gateway['status']}")
 ```
 
@@ -433,72 +509,19 @@ for gateway in response['gatewaySummaries']:
 
 ```python
 response = control_client.list_gateway_targets(
-    gatewayId='gw-abc123xyz'
+    gatewayIdentifier='gw-abc123xyz'
 )
 
-for target in response['targetSummaries']:
-    print(f"Target: {target['name']} ({target['targetType']})")
+for target in response['items']:
+    print(f"Target: {target['name']} ({target['status']})")
 ```
 
 ##### DeleteGateway
 
 ```python
 control_client.delete_gateway(
-    gatewayId='gw-abc123xyz'
+    gatewayIdentifier='gw-abc123xyz'
 )
-```
-
-#### Data Plane APIs
-
-##### ListTools (MCP)
-
-```python
-import json
-
-# List all tools via MCP protocol
-response = data_client.invoke_gateway(
-    gatewayId='gw-abc123xyz',
-    method='tools/list',
-    payload=json.dumps({}).encode()
-)
-
-result = json.loads(response['payload'].read())
-for tool in result['tools']:
-    print(f"Tool: {tool['name']}")
-```
-
-##### CallTool (MCP)
-
-```python
-# Call a tool via MCP protocol
-response = data_client.invoke_gateway(
-    gatewayId='gw-abc123xyz',
-    method='tools/call',
-    payload=json.dumps({
-        'name': 'get_weather',
-        'arguments': {
-            'location': 'Seattle',
-            'units': 'celsius'
-        }
-    }).encode()
-)
-
-result = json.loads(response['payload'].read())
-print(f"Result: {result['content']}")
-```
-
-##### Semantic Search
-
-```python
-# Search for tools by description
-response = data_client.search_gateway_tools(
-    gatewayId='gw-abc123xyz',
-    query='find stock prices and financial data',
-    maxResults=10
-)
-
-for tool in response['tools']:
-    print(f"{tool['name']}: {tool['description']} (score: {tool['relevanceScore']})")
 ```
 
 ---
@@ -507,14 +530,14 @@ for tool in response['tools']:
 
 ### Lambda Targets
 
-Convert Lambda functions into MCP tools.
+Convert Lambda functions into MCP tools. `toolSchema` accepts inline tool definitions (`inlinePayload`, a list) or an S3-hosted schema (`s3`), not both.
 
 ```python
 {
-    'lambdaTargetConfiguration': {
+    'lambda': {
         'lambdaArn': 'arn:aws:lambda:us-east-1:123456789012:function:MyFunction',
         'toolSchema': {
-            'tools': [
+            'inlinePayload': [
                 {
                     'name': 'my_tool',
                     'description': 'What this tool does',
@@ -561,24 +584,19 @@ Convert REST APIs using OpenAPI specifications.
 
 ```python
 {
-    'openApiTargetConfiguration': {
-        'openApiSpecificationS3Location': {
-            'bucket': 'my-bucket',
-            'key': 'api-spec.yaml'
-        },
-        'endpointConfiguration': {
-            'url': 'https://api.example.com'
-        },
-        'credentialProviderArn': 'arn:aws:bedrock-agentcore:...:credential-provider/my-creds'
+    'openApiSchema': {
+        's3': {'uri': 's3://my-bucket/api-spec.yaml'}
     }
 }
 ```
+
+Outbound credentials for the target go in the sibling `credentialProviderConfigurations` list on `CreateGatewayTarget`, not inside `openApiSchema` itself.
 
 **OpenAPI Spec Requirements:**
 - Valid OpenAPI 3.0+ specification
 - Clear operation descriptions
 - Well-defined request/response schemas
-- operationId for each endpoint
+- `operationId` for each endpoint
 
 ### Smithy Targets
 
@@ -586,14 +604,8 @@ Use Smithy models for type-safe API integration.
 
 ```python
 {
-    'smithyTargetConfiguration': {
-        'smithyModelS3Location': {
-            'bucket': 'my-bucket',
-            'key': 'model.smithy'
-        },
-        'endpointConfiguration': {
-            'url': 'https://api.example.com'
-        }
+    'smithyModel': {
+        's3': {'uri': 's3://my-bucket/model.smithy'}
     }
 }
 ```
@@ -604,13 +616,22 @@ Connect to external MCP servers.
 
 ```python
 {
-    'mcpServerTargetConfiguration': {
-        'mcpServerUrl': 'https://mcp.external.com',
-        'transportType': 'HTTP_SSE',
-        'authConfiguration': {
-            'type': 'BEARER_TOKEN',
-            'credentialProviderArn': 'arn:aws:bedrock-agentcore:...:credential-provider/mcp-token'
-        }
+    'mcpServer': {
+        'endpoint': 'https://mcp.external.com',
+        'listingMode': 'AUTOMATIC'
+    }
+}
+```
+
+### API Gateway Targets
+
+Convert an Amazon API Gateway API into MCP tools.
+
+```python
+{
+    'apiGateway': {
+        # See the CreateGatewayTarget API reference for the full shape;
+        # not yet exercised in this repo's examples.
     }
 }
 ```
@@ -619,32 +640,37 @@ Connect to external MCP servers.
 
 ## 1-Click Integrations
 
-Pre-built integrations for popular services:
-
-| Service | Description |
-|---------|-------------|
-| **Salesforce** | CRM operations, leads, opportunities |
-| **Slack** | Messaging, channels, users |
-| **Jira** | Issue tracking, projects |
-| **Asana** | Task management, projects |
-| **Zendesk** | Support tickets, customers |
-| **GitHub** | Repositories, issues, PRs |
-| **Google Workspace** | Drive, Calendar, Gmail |
-
-### Enable Integration
+Gateway ships a **connector** target type backed by an AWS-managed connector catalog (Salesforce, Slack, Jira, and similar SaaS services), instead of a `client.add_integration(...)` SDK call:
 
 ```python
-from bedrock_agentcore.gateway import GatewayClient
-
-client = GatewayClient()
-
-# Add Salesforce integration
-target = client.add_integration(
-    gateway_id=gateway_id,
-    integration="salesforce",
-    credential_provider_arn="arn:aws:bedrock-agentcore:...:credential-provider/salesforce-oauth"
+response = control_client.create_gateway_target(
+    gatewayIdentifier='gw-abc123xyz',
+    name='SalesforceConnector',
+    targetConfiguration={
+        'mcp': {
+            'connector': {
+                'source': {
+                    'connectorId': 'salesforce',  # see the console's connector catalog for valid IDs
+                    'version': '1',
+                },
+            }
+        }
+    },
+    credentialProviderConfigurations=[
+        {
+            'credentialProviderType': 'OAUTH',
+            'credentialProvider': {
+                'oauthCredentialProvider': {
+                    'providerArn': 'arn:aws:bedrock-agentcore:us-east-1:123456789012:credential-provider/salesforce-oauth',
+                    'scopes': ['api'],
+                }
+            }
+        }
+    ],
 )
 ```
+
+The set of valid `connectorId` values is AWS's connector catalog, browsable in the console; there is no boto3 `ListConnectors` operation to enumerate them programmatically, so treat any specific connector ID as illustrative rather than guaranteed current.
 
 ---
 
@@ -652,16 +678,16 @@ target = client.add_integration(
 
 ### Inbound Authentication
 
-Verify agent/user identity before tool access.
+Verify agent/user identity before tool access. `authorizerType` is one of `AWS_IAM`, `CUSTOM_JWT`, `NONE`, or `AUTHENTICATE_ONLY`.
 
-#### IAM Authentication
+#### AWS IAM Authentication
 
 ```python
-# Gateway with IAM auth (default)
+# Gateway with IAM auth
 gateway = control_client.create_gateway(
     name='MyGateway',
     roleArn=role_arn,
-    authorizerType='IAM',
+    authorizerType='AWS_IAM',
     protocolType='MCP'
 )
 ```
@@ -677,47 +703,54 @@ gateway = control_client.create_gateway(
     roleArn=role_arn,
     authorizerType='CUSTOM_JWT',
     authorizerConfiguration={
-        'customJwtAuthorizerConfig': {
+        'customJWTAuthorizer': {
             'discoveryUrl': 'https://your-idp.com/.well-known/openid-configuration',
-            'allowedAudiences': ['your-client-id'],
-            'allowedClients': ['your-client-id'],
-            'allowedScopes': ['tools:read', 'tools:write']
+            'allowedAudience': ['your-client-id'],
+            'allowedClients': ['your-client-id']
         }
     },
     protocolType='MCP'
 )
 ```
 
+`allowedAudience` is singular despite taking a list, and the config key is `customJWTAuthorizer` (capital JWT), not `customJwtAuthorizerConfig`.
+
 ### Outbound Authentication
 
-Connect to backend services on behalf of users.
+Connect to backend services on behalf of users, via credential providers attached to a target's `credentialProviderConfigurations`.
 
 #### OAuth 2.0
 
 ```python
-# Create OAuth credential provider
-credential_provider = control_client.create_credential_provider(
+# Create OAuth2 credential provider (a dedicated API, not a generic
+# create_credential_provider call - see AgentCore Identity)
+credential_provider = control_client.create_oauth2_credential_provider(
     name='SalesforceOAuth',
     credentialProviderVendor='SalesforceOauth2',
     oauth2ProviderConfigInput={
-        'clientId': 'your-client-id',
-        'clientSecret': 'your-client-secret',
-        'authorizationUrl': 'https://login.salesforce.com/services/oauth2/authorize',
-        'tokenUrl': 'https://login.salesforce.com/services/oauth2/token',
-        'scopes': ['api', 'refresh_token']
+        'salesforceOauth2ProviderConfig': {
+            'clientId': 'your-client-id',
+            'clientSecret': 'your-client-secret',
+        }
     }
 )
 
-# Use in target
+# Reference it from a target
 target = control_client.create_gateway_target(
-    gatewayId=gateway_id,
+    gatewayIdentifier=gateway_id,
     name='SalesforceTools',
-    targetConfiguration={
-        'openApiTargetConfiguration': {
-            # ...
-            'credentialProviderArn': credential_provider['credentialProviderArn']
+    targetConfiguration={'mcp': {'openApiSchema': {'s3': {'uri': 's3://my-bucket/salesforce.yaml'}}}},
+    credentialProviderConfigurations=[
+        {
+            'credentialProviderType': 'OAUTH',
+            'credentialProvider': {
+                'oauthCredentialProvider': {
+                    'providerArn': credential_provider['credentialProviderArn'],
+                    'scopes': ['api'],
+                }
+            }
         }
-    }
+    ]
 )
 ```
 
@@ -725,15 +758,13 @@ target = control_client.create_gateway_target(
 
 ```python
 # Create API key credential provider
-credential_provider = control_client.create_credential_provider(
+credential_provider = control_client.create_api_key_credential_provider(
     name='WeatherAPIKey',
-    credentialProviderVendor='ApiKey',
-    apiKeyProviderConfigInput={
-        'apiKey': 'your-api-key',
-        'headerName': 'X-API-Key'  # or 'Authorization'
-    }
+    apiKey='your-api-key',
 )
 ```
+
+See [AgentCore Identity](./04-identity.md) for the full credential-provider surface, including the real `credentialProviderVendor` enum.
 
 ---
 
@@ -743,205 +774,125 @@ credential_provider = control_client.create_credential_provider(
 
 ```python
 from bedrock_agentcore.gateway import GatewayClient
-import boto3
 
-# Create gateway
 gateway_client = GatewayClient(region_name='us-east-1')
 
-gateway = gateway_client.create_gateway(
+gateway = gateway_client.create_gateway_and_wait(
     name="ProductionGateway",
-    authorizer_type="IAM",
-    enable_semantic_search=True
+    roleArn=role_arn,
+    authorizerType="AWS_IAM",
+    protocolConfiguration={"mcp": {"searchType": "SEMANTIC"}},
 )
 
-# Create Lambda function for tool
-lambda_code = '''
-import json
-
-def handler(event, context):
-    tool_name = event.get('name')
-    args = event.get('arguments', {})
-
-    if tool_name == 'get_product':
-        product_id = args.get('product_id')
-        # Fetch product from database
-        product = {"id": product_id, "name": "Widget", "price": 29.99}
-        return {
-            "content": [{"type": "text", "text": json.dumps(product)}]
-        }
-
-    return {"isError": True, "content": [{"type": "text", "text": "Unknown tool"}]}
-'''
-
-# Add Lambda target
-target = gateway_client.create_target(
-    gateway_id=gateway["gatewayId"],
+# Add a Lambda target (assumes lambda_arn already deployed - see the Lambda
+# handler format above for the function's expected event/response shape)
+target = gateway_client.create_gateway_target_and_wait(
+    gatewayIdentifier=gateway["gatewayId"],
     name="ProductTools",
-    target_type="lambda",
-    lambda_config={
-        "functionArn": lambda_arn,
-        "toolSchema": {
-            "tools": [{
-                "name": "get_product",
-                "description": "Retrieve product details by ID",
-                "inputSchema": {
-                    "type": "object",
-                    "properties": {
-                        "product_id": {"type": "string", "description": "Product ID"}
-                    },
-                    "required": ["product_id"]
-                }
-            }]
+    targetConfiguration={
+        "mcp": {
+            "lambda": {
+                "lambdaArn": lambda_arn,
+                "toolSchema": {
+                    "inlinePayload": [
+                        {
+                            "name": "get_product",
+                            "description": "Retrieve product details by ID",
+                            "inputSchema": {
+                                "type": "object",
+                                "properties": {
+                                    "product_id": {"type": "string", "description": "Product ID"}
+                                },
+                                "required": ["product_id"],
+                            },
+                        }
+                    ]
+                },
+            }
         }
-    }
+    },
 )
 
-# Use the gateway
-result = gateway_client.call_tool(
-    gateway_id=gateway["gatewayId"],
-    tool_name="get_product",
-    arguments={"product_id": "PROD-123"}
-)
-
-print(result)
+print(gateway["gatewayUrl"])
 ```
 
-### Agent with Gateway Tools
+### Agent with Gateway Tools (Strands)
 
 ```python
 from strands import Agent
 from strands.models import BedrockModel
-from strands.tools import tool
-from bedrock_agentcore.gateway import GatewayClient
+from strands.tools.mcp import MCPClient
+from mcp.client.streamable_http import streamablehttp_client
 
-# Initialize
-model = BedrockModel(model_id="anthropic.claude-sonnet-4-6")
-gateway = GatewayClient(gateway_id="gw-abc123xyz")
+model = BedrockModel(model_id="us.anthropic.claude-haiku-4-5-20251001-v1:0")
 
-# Get tools from gateway
-gateway_tools = gateway.list_tools()
-
-# Create dynamic tool wrapper
-@tool
-def gateway_tool(tool_name: str, arguments: dict) -> str:
-    """Execute a tool from the gateway.
-
-    Args:
-        tool_name: Name of the tool to execute
-        arguments: Arguments to pass to the tool
-    """
-    result = gateway.call_tool(tool_name=tool_name, arguments=arguments)
-    return result["content"]
-
-# Create agent with gateway tools
-agent = Agent(
-    model=model,
-    tools=[gateway_tool],
-    system_prompt=f"""You have access to these tools via the gateway:
-{chr(10).join([f"- {t['name']}: {t['description']}" for t in gateway_tools])}
-
-Use gateway_tool() to call any of these tools."""
+mcp_client = MCPClient(
+    lambda: streamablehttp_client(
+        gateway_url,
+        headers={"Authorization": f"Bearer {bearer_token}"},
+    )
 )
 
-# Use agent
-response = agent("What's the current weather in Seattle?")
-print(response)
+with mcp_client:
+    tools = mcp_client.list_tools_sync()
+
+    # Strands' MCPAgentTool objects are usable directly as Strands tools
+    agent = Agent(
+        model=model,
+        tools=tools,
+        system_prompt="Use the available tools to help users.",
+    )
+
+    response = agent("What's the current weather in Seattle?")
+    print(response)
 ```
 
 ### LangGraph with Gateway
 
 ```python
+import asyncio
 from langgraph.graph import StateGraph
 from langchain_core.tools import StructuredTool
-from bedrock_agentcore.gateway import GatewayClient
+from mcp import ClientSession
+from mcp.client.streamable_http import streamablehttp_client
 
-gateway = GatewayClient(gateway_id="gw-abc123xyz")
 
-# Convert gateway tools to LangChain tools
-def create_langchain_tools():
-    tools = []
-    for gateway_tool in gateway.list_tools():
-        def make_tool_func(name):
-            def tool_func(**kwargs):
-                return gateway.call_tool(tool_name=name, arguments=kwargs)
-            return tool_func
+async def load_gateway_tools(gateway_url: str, bearer_token: str) -> list[StructuredTool]:
+    """Fetch Gateway tools over MCP and wrap each as a LangChain tool."""
+    async with streamablehttp_client(
+        gateway_url, headers={"Authorization": f"Bearer {bearer_token}"}
+    ) as (read, write, _):
+        async with ClientSession(read, write) as session:
+            await session.initialize()
+            listing = await session.list_tools()
 
-        tool = StructuredTool.from_function(
-            func=make_tool_func(gateway_tool["name"]),
-            name=gateway_tool["name"],
-            description=gateway_tool["description"]
-        )
-        tools.append(tool)
-    return tools
+            async def call(name: str, **kwargs):
+                async with streamablehttp_client(
+                    gateway_url, headers={"Authorization": f"Bearer {bearer_token}"}
+                ) as (r, w, _):
+                    async with ClientSession(r, w) as s:
+                        await s.initialize()
+                        result = await s.call_tool(name, kwargs)
+                        return result.content
 
-langchain_tools = create_langchain_tools()
+            return [
+                StructuredTool.from_function(
+                    coroutine=lambda name=t.name, **kw: call(name, **kw),
+                    name=t.name,
+                    description=t.description or "",
+                )
+                for t in listing.tools
+            ]
+
+
+langchain_tools = asyncio.run(load_gateway_tools(gateway_url, bearer_token))
 
 # Use in LangGraph
 graph = StateGraph(AgentState)
 # ... build graph with tools ...
 ```
 
-### Multi-Gateway Setup
-
-```python
-from bedrock_agentcore.gateway import GatewayClient
-
-# Create specialized gateways
-crm_gateway = GatewayClient(gateway_id="gw-crm")
-analytics_gateway = GatewayClient(gateway_id="gw-analytics")
-internal_gateway = GatewayClient(gateway_id="gw-internal")
-
-class MultiGatewayRouter:
-    """Route tool calls to appropriate gateway."""
-
-    def __init__(self):
-        self.gateways = {
-            "crm": crm_gateway,
-            "analytics": analytics_gateway,
-            "internal": internal_gateway
-        }
-        self.tool_mapping = self._build_mapping()
-
-    def _build_mapping(self):
-        mapping = {}
-        for category, gateway in self.gateways.items():
-            for tool in gateway.list_tools():
-                mapping[tool["name"]] = category
-        return mapping
-
-    def call_tool(self, tool_name: str, arguments: dict):
-        category = self.tool_mapping.get(tool_name)
-        if not category:
-            raise ValueError(f"Unknown tool: {tool_name}")
-
-        gateway = self.gateways[category]
-        return gateway.call_tool(tool_name=tool_name, arguments=arguments)
-
-router = MultiGatewayRouter()
-result = router.call_tool("get_customer", {"customer_id": "123"})
-```
-
-### Gateway with Policy Engine
-
-```python
-from bedrock_agentcore.gateway import GatewayClient
-import boto3
-
-control = boto3.client('bedrock-agentcore-control')
-
-# Create gateway with policy engine
-gateway = control.create_gateway(
-    name='SecureGateway',
-    roleArn=role_arn,
-    authorizerType='CUSTOM_JWT',
-    authorizerConfiguration={...},
-    protocolType='MCP',
-    policyEngineConfiguration={
-        'policyEngineArn': 'arn:aws:bedrock-agentcore:us-east-1:123456789012:policy-engine/pe-abc123',
-        'enforcementMode': 'ENFORCE'  # or 'LOG_ONLY'
-    }
-)
-```
+Reopening a connection per call (as above) is simple but chattier than necessary; a production integration typically keeps one `ClientSession` open for the agent's lifetime instead.
 
 ---
 
@@ -951,62 +902,60 @@ gateway = control.create_gateway(
 
 ```python
 from bedrock_agentcore.runtime import BedrockAgentCoreApp
-from bedrock_agentcore.gateway import GatewayClient
+from strands.tools.mcp import MCPClient
+from mcp.client.streamable_http import streamablehttp_client
 
-gateway = GatewayClient(gateway_id="gw-abc123xyz")
 app = BedrockAgentCoreApp()
 
-@app.entrypoint()
+@app.entrypoint
 async def main(request):
     prompt = request.get("prompt")
+    bearer_token = request.get("bearer_token")
 
-    # Get relevant tools
-    tools = gateway.search_tools(query=prompt, max_results=5)
-
-    # Agent decides which tools to use
-    tool_calls = agent.plan_tool_calls(prompt, tools)
-
-    # Execute tools
-    results = []
-    for call in tool_calls:
-        result = gateway.call_tool(
-            tool_name=call["name"],
-            arguments=call["arguments"]
+    mcp_client = MCPClient(
+        lambda: streamablehttp_client(
+            gateway_url, headers={"Authorization": f"Bearer {bearer_token}"}
         )
-        results.append(result)
+    )
 
-    # Generate response with tool results
-    response = agent.generate(prompt, tool_results=results)
+    with mcp_client:
+        tools = mcp_client.list_tools_sync()
+        agent = Agent(model=model, tools=tools)
+        response = agent(prompt)
 
-    return {"response": response}
+    return {"response": str(response)}
 ```
 
 ### With AgentCore Identity
 
 ```python
-from bedrock_agentcore.gateway import GatewayClient
-from bedrock_agentcore.identity import IdentityClient
+from bedrock_agentcore.identity.auth import IdentityClient
+from strands.tools.mcp import MCPClient
+from mcp.client.streamable_http import streamablehttp_client
 
-identity = IdentityClient()
-gateway = GatewayClient(gateway_id="gw-abc123xyz")
+identity = IdentityClient(region="us-east-1")
 
-def call_tool_with_user_context(user_id: str, tool_name: str, arguments: dict):
-    """Call tool with user's credentials."""
+def call_tool_with_user_context(agent_identity_token: str, tool_name: str, arguments: dict):
+    """Call a Gateway tool using the caller's delegated credentials."""
 
-    # Get user's OAuth token
-    token = identity.get_resource_token(
-        user_id=user_id,
-        credential_provider_arn="arn:aws:bedrock-agentcore:...:credential-provider/salesforce"
+    # Get the user's OAuth token for a downstream service the tool needs
+    token = identity.get_token(
+        provider_name="salesforce",
+        agent_identity_token=agent_identity_token,
+        auth_flow="USER_FEDERATION",
+        scopes=["api"],
     )
 
-    # Call tool with token
-    result = gateway.call_tool(
-        tool_name=tool_name,
-        arguments=arguments,
-        bearer_token=token["accessToken"]
+    mcp_client = MCPClient(
+        lambda: streamablehttp_client(
+            gateway_url, headers={"Authorization": f"Bearer {token}"}
+        )
     )
 
-    return result
+    with mcp_client:
+        return mcp_client.call_tool_sync(
+            tool_use_id="call-1", name=tool_name, arguments=arguments
+        )
 ```
 
 ---
@@ -1015,7 +964,7 @@ def call_tool_with_user_context(user_id: str, tool_name: str, arguments: dict):
 
 1. **Group related tools** - Create one target per logical group of tools (CRM, analytics, etc.).
 
-2. **Enable semantic search** - Helps agents find the right tools when you have many.
+2. **Enable semantic search** - Helps agents find the right tools when you have many (`protocolConfiguration.mcp.searchType='SEMANTIC'`).
 
 3. **Write clear descriptions** - Tool descriptions are used for semantic search and agent understanding.
 
@@ -1027,7 +976,7 @@ def call_tool_with_user_context(user_id: str, tool_name: str, arguments: dict):
 
 7. **Monitor usage** - Use CloudWatch metrics to track tool invocations.
 
-8. **Handle errors gracefully** - Return proper error structures from Lambda handlers.
+8. **Handle errors gracefully** - Return proper error structures (`isError`, `content`) from Lambda handlers.
 
 9. **Set appropriate timeouts** - Configure Lambda timeouts based on tool complexity.
 
@@ -1041,37 +990,34 @@ def call_tool_with_user_context(user_id: str, tool_name: str, arguments: dict):
 
 | Error | Cause | Solution |
 |-------|-------|----------|
-| `GatewayNotFound` | Invalid gateway ID | Verify gateway exists and is ACTIVE |
-| `ToolNotFound` | Tool name mismatch | Check tool name matches schema |
-| `AuthorizationError` | Invalid credentials | Verify credential provider setup |
-| `TargetError` | Backend service error | Check Lambda logs or API health |
-| `SchemaValidation` | Invalid arguments | Verify arguments match input schema |
-| `Timeout` | Tool execution too slow | Increase Lambda timeout |
+| `ResourceNotFoundException` | Invalid gateway ID | Verify gateway exists and is `ACTIVE` |
+| `ToolNotFound` (MCP error) | Tool name mismatch | Check tool name matches schema |
+| `AccessDeniedException` | Invalid credentials or SigV4 signature | Verify credential provider setup / IAM signing |
+| `ValidationException` | Malformed `targetConfiguration` | Check the nested `mcp.<type>` shape matches the API reference |
+| Tool execution timeout | Backend too slow | Increase Lambda timeout |
 
 ### Debugging Tips
 
 ```bash
 # Check gateway status
-aws bedrock-agentcore-control get-gateway --gateway-id gw-abc123
+agentcore gateway get-mcp-gateway --id gw-abc123
 
 # List targets
-aws bedrock-agentcore-control list-gateway-targets --gateway-id gw-abc123
+agentcore gateway list-mcp-gateway-targets --id gw-abc123
 
-# View Lambda logs
+# Or via boto3
+aws bedrock-agentcore-control get-gateway --gateway-identifier gw-abc123
+aws bedrock-agentcore-control list-gateway-targets --gateway-identifier gw-abc123
+
+# View Lambda target logs
 aws logs tail /aws/lambda/MyToolFunction --follow
-
-# Test tool directly
-agentcore gateway test-tool \
-    --gateway-id gw-abc123 \
-    --tool-name get_weather \
-    --arguments '{"location": "Seattle"}'
 ```
 
 ### Lambda Tool Not Working
 
-1. Check Lambda function exists and has correct permissions
-2. Verify tool schema matches Lambda handler expectations
-3. Check Lambda execution role can be assumed by Gateway
+1. Check the Lambda function exists and has correct permissions
+2. Verify the tool schema (`toolSchema.inlinePayload`) matches the Lambda handler's expectations
+3. Check the Lambda execution role can be assumed by Gateway
 4. Review CloudWatch logs for Lambda errors
 
 ---
@@ -1098,9 +1044,8 @@ agentcore gateway test-tool \
 
 | Operation | Rate |
 |-----------|------|
-| ListTools | Per request |
-| CallTool | Per request |
-| Ping | Per request |
+| Tool calls (`tools/call`) | Per request |
+| Tool listing (`tools/list`) | Per request |
 
 ### Semantic Search
 
@@ -1112,7 +1057,7 @@ agentcore gateway test-tool \
 ### Cost Optimization Tips
 
 1. **Batch tool calls** - Combine related calls when possible.
-2. **Cache ListTools** - Tool lists change infrequently.
+2. **Cache tool listings** - Tool lists change infrequently.
 3. **Right-size targets** - Only expose needed tools.
 4. **Monitor search usage** - Semantic search has separate costs.
 

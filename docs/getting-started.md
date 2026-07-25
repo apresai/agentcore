@@ -7,7 +7,7 @@ Deploy your first AI agent to AWS Bedrock AgentCore in under 5 minutes.
 Before you begin, ensure you have:
 
 - [ ] **AWS Account** with appropriate IAM permissions
-- [ ] **Python 3.9+** installed
+- [ ] **Python 3.10+** installed
 - [ ] **AWS CLI** configured with credentials
 
 > [!NOTE]
@@ -20,19 +20,21 @@ Before you begin, ensure you have:
 ### Step 1: Install the AgentCore SDK
 
 ```bash
-pip install amazon-bedrock-agentcore
+pip install bedrock-agentcore
 ```
 
 ### Step 2: Install the Starter Toolkit CLI
 
 ```bash
-pip install agentcore-starter-toolkit
+pip install bedrock-agentcore-starter-toolkit
 ```
 
 ### Step 3: Verify Installation
 
+The top-level CLI only accepts `--help` (there is no `--version` flag):
+
 ```bash
-agentcore --version
+agentcore --help
 ```
 
 ---
@@ -41,22 +43,28 @@ agentcore --version
 
 ### Create Your First Agent
 
+`create` takes no positional name argument - pass the project name with `-p`/`--project-name`. Project names are alphanumeric only (no `-` or `_`), up to 36 characters, so `hello-agent` itself isn't valid; use `helloagent`:
+
 ```bash
-agentcore create hello-agent
+agentcore create --project-name helloagent --agent-framework Strands --model-provider Bedrock
 ```
 
 This creates a new agent project with the following structure:
 
 ```
-hello-agent/
-├── agent.py           # Your agent code
-├── requirements.txt   # Dependencies
-└── agentcore.yaml    # Configuration
+helloagent/
+├── src/
+│   └── main.py              # Your agent code
+├── test/
+│   └── test_main.py         # Tests
+├── pyproject.toml           # Dependencies
+├── .bedrock_agentcore.yaml  # Configuration
+└── README.md
 ```
 
 ### Examine the Agent Code
 
-The generated `agent.py` contains a minimal agent:
+The generated `src/main.py` contains a minimal agent (simplified here for illustration - the real scaffold wires in additional tooling by default):
 
 ```python
 from strands import Agent
@@ -80,27 +88,24 @@ agent = create_agent()
 ### Deploy to AgentCore
 
 ```bash
-cd hello-agent
+cd helloagent
 agentcore deploy
 ```
 
-Expected output:
+By default this deploys to AgentCore Runtime without local Docker - for a fresh Strands scaffold like this one, that means direct code deploy (your Python is uploaded and run as-is); container deployments, when used, build in the cloud via CodeBuild. It prints the deployed agent's runtime ARN when it finishes, in the form:
 
 ```
-✓ Building agent package...
-✓ Uploading to AgentCore...
-✓ Deploying agent...
-
-Agent deployed successfully!
-  Name: hello-agent
-  ARN:  arn:aws:bedrock-agentcore:us-east-1:123456789:agent/hello-agent
-  URL:  https://hello-agent.agentcore.us-east-1.amazonaws.com
+arn:aws:bedrock-agentcore:us-east-1:123456789012:agent-runtime/helloagent-abc123
 ```
+
+There is no public HTTPS URL for the agent - invocation goes through `agentcore invoke` or the `invoke_agent_runtime` API, both shown below.
 
 ### Invoke Your Agent
 
+`invoke` takes one required positional argument - a JSON payload, not a bare string. The agent name is passed with `--agent`/`-a` only if it can't be inferred from `.bedrock_agentcore.yaml`:
+
 ```bash
-agentcore invoke hello-agent "What is AgentCore?"
+agentcore invoke '{"prompt": "What is AgentCore?"}'
 ```
 
 ---
@@ -109,8 +114,8 @@ agentcore invoke hello-agent "What is AgentCore?"
 
 | Interface | Use Case | Installation |
 |-----------|----------|--------------|
-| **AgentCore CLI** | Create, deploy, invoke, manage | `pip install agentcore-starter-toolkit` |
-| **Python SDK** | Programmatic agent development | `pip install amazon-bedrock-agentcore` |
+| **AgentCore CLI** | Create, deploy, invoke, manage | `pip install bedrock-agentcore-starter-toolkit` |
+| **Python SDK** | Programmatic agent development | `pip install bedrock-agentcore` |
 | **boto3** | Low-level AWS API access | `pip install boto3` |
 | **AWS Console** | Visual management | [console.aws.amazon.com](https://console.aws.amazon.com) |
 
@@ -121,53 +126,74 @@ agentcore invoke hello-agent "What is AgentCore?"
 ### AgentCore SDK (Recommended)
 
 ```python
-from bedrock_agentcore.runtime import RuntimeClient
+from bedrock_agentcore.runtime import AgentCoreRuntimeClient
 from bedrock_agentcore.memory import MemoryClient
 from bedrock_agentcore.gateway import GatewayClient
 
-# Runtime
-runtime = RuntimeClient()
-response = runtime.invoke(agent_id="my-agent", input="Hello!")
+# Runtime - AgentCoreRuntimeClient manages runtime resources (create, update,
+# delete, endpoints, status); it has no invoke() method. Invoking a deployed
+# agent is a data-plane call - see the boto3 example below.
+runtime = AgentCoreRuntimeClient(region="us-east-1")
+status = runtime.get_aggregated_status(agent_runtime_id="my-agent-id")
 
-# Memory
-memory = MemoryClient()
-session = memory.create_session(agent_id="my-agent")
+# Memory - there is no create_session(); store a conversation turn directly
+memory = MemoryClient(region_name="us-east-1")
+memory.create_event(
+    memory_id="my-memory-id",
+    actor_id="user-alice",
+    session_id="session-123",
+    messages=[("Hello!", "USER")],
+)
 
-# Gateway
-gateway = GatewayClient()
-tools = gateway.list_tools()
+# Gateway - GatewayClient manages gateway/target resources, not individual
+# tools; agents call tools over MCP against the gateway's URL (see the
+# Gateway service reference for the MCP client pattern).
+gateway = GatewayClient(region_name="us-east-1")
+gateways = gateway.list_gateways(maxResults=50)
 ```
 
 ### boto3 (Alternative)
 
+Only `bedrock-agentcore` (data plane) and `bedrock-agentcore-control` (control plane) are real botocore service names - there is no `bedrock-agentcore-runtime` or `bedrock-agentcore-memory` service.
+
 ```python
 import boto3
+import json
 
-# Runtime
-runtime = boto3.client('bedrock-agentcore-runtime')
-response = runtime.invoke_agent(
-    agentId='my-agent',
-    input={'text': 'Hello!'}
+# Runtime - invoking an agent is a data-plane call
+runtime = boto3.client('bedrock-agentcore', region_name='us-east-1')
+response = runtime.invoke_agent_runtime(
+    agentRuntimeArn='arn:aws:bedrock-agentcore:us-east-1:123456789012:agent-runtime/my-agent',
+    runtimeSessionId='session-123',
+    payload=json.dumps({'prompt': 'Hello!'}).encode()
 )
 
-# Memory
-memory = boto3.client('bedrock-agentcore-memory')
-session = memory.create_session(agentId='my-agent')
+# Memory - also on the data-plane client
+memory = boto3.client('bedrock-agentcore', region_name='us-east-1')
+memory.create_event(
+    memoryId='mem-abc123xyz',
+    actorId='user-alice',
+    sessionId='session-123',
+    eventTimestamp='2024-01-15T10:30:00Z',
+    payload=[{'conversational': {'role': 'USER', 'content': {'text': 'Hello!'}}}]
+)
 ```
 
 ---
 
 ## CLI Commands
 
+There is no `agentcore logs`, `agentcore list`, `agentcore delete`, or `agentcore describe` - use `status`/`destroy` below and CloudWatch for logs.
+
 | Command | Description |
 |---------|-------------|
-| `agentcore create <name>` | Create a new agent project |
+| `agentcore create -p <name>` | Create a new agent project |
 | `agentcore deploy` | Deploy agent to AgentCore |
-| `agentcore invoke <name> "<message>"` | Invoke a deployed agent |
-| `agentcore logs <name>` | View agent logs |
-| `agentcore list` | List all agents |
-| `agentcore delete <name>` | Delete an agent |
-| `agentcore describe <name>` | Get agent details |
+| `agentcore invoke '<json-payload>'` | Invoke a deployed agent |
+| `agentcore status [-v]` | Get deployment status (config, agent, endpoint) |
+| `agentcore destroy` | Remove the deployed agent and its resources |
+| `agentcore stop-session` | Stop an active runtime session |
+| `agentcore configure` | Manage per-agent configuration (region, IAM role, memory, timeouts) |
 
 ---
 
@@ -197,7 +223,7 @@ graph TD
 from strands import Agent
 from strands.models import BedrockModel
 
-model = BedrockModel(model_id="anthropic.claude-sonnet-4-6")
+model = BedrockModel(model_id="us.anthropic.claude-haiku-4-5-20251001-v1:0")
 
 agent = Agent(
     model=model,
@@ -205,7 +231,9 @@ agent = Agent(
     tools=[...]  # Add tools here
 )
 
-response = agent.run("Hello!")
+# Agent has no .run() method - call it directly, or use invoke_async() in
+# an async context.
+response = agent("Hello!")
 ```
 
 </details>
@@ -217,7 +245,7 @@ response = agent.run("Hello!")
 from langgraph.graph import StateGraph
 from langchain_aws import ChatBedrock
 
-model = ChatBedrock(model_id="anthropic.claude-sonnet-4-6")
+model = ChatBedrock(model_id="us.anthropic.claude-haiku-4-5-20251001-v1:0")
 
 # Define your graph
 workflow = StateGraph(AgentState)
@@ -258,75 +286,110 @@ result = crew.kickoff()
 
 ### Add Memory
 
+There is no `create_session()`. Create a memory resource once, then record turns with `create_event()`:
+
 ```python
 from bedrock_agentcore.memory import MemoryClient
 
-memory = MemoryClient()
+memory = MemoryClient(region_name="us-east-1")
 
-# Create a session for context
-session = memory.create_session(
-    agent_id="my-agent",
-    user_id="user-123"
+# One-time setup: create the memory resource with a long-term strategy
+mem = memory.create_memory_and_wait(
+    name="MyAgentMemory",
+    strategies=[
+        {"semanticMemoryStrategy": {"name": "FactExtractor", "namespaces": ["facts"]}}
+    ],
 )
 
-# Add messages (short-term memory)
-session.add_message(role="user", content="My name is Alice")
-session.add_message(role="assistant", content="Hello Alice!")
+# Store a conversation turn (short-term memory) - messages are (text, role)
+# tuples, not role=/content= keyword calls.
+memory.create_event(
+    memory_id=mem["memoryId"],
+    actor_id="user-123",
+    session_id="session-abc",
+    messages=[
+        ("My name is Alice", "USER"),
+        ("Hello Alice!", "ASSISTANT"),
+    ],
+)
 
-# Store long-term facts
-memory.store_fact(
-    agent_id="my-agent",
-    user_id="user-123",
-    fact="User prefers formal communication"
+# Long-term facts are extracted automatically by the strategy above, not
+# stored with a store_fact() call. Retrieve them semantically later:
+facts = memory.retrieve_memories(
+    memory_id=mem["memoryId"],
+    namespace="facts",
+    query="communication preferences",
 )
 ```
 
 ### Add Tools via Gateway
 
+`GatewayClient` manages gateway and target *resources* - it has no `create_from_openapi`/`create_from_lambda`/`enable_integration` methods. Create a gateway, then attach a Lambda function as a target:
+
 ```python
 from bedrock_agentcore.gateway import GatewayClient
 
-gateway = GatewayClient()
+gateway = GatewayClient(region_name="us-east-1")
 
-# From OpenAPI spec
-tools = gateway.create_from_openapi(
-    name="my-api",
-    spec_url="https://api.example.com/openapi.json"
+# Waits for the gateway to reach READY (or raises on FAILED)
+gw = gateway.create_gateway_and_wait(
+    name="MyGateway",
+    roleArn="arn:aws:iam::123456789012:role/GatewayRole",
+    authorizerType="AWS_IAM",
+    protocolType="MCP",
 )
 
-# From Lambda function
-tool = gateway.create_from_lambda(
-    name="my-tool",
-    function_arn="arn:aws:lambda:us-east-1:123456789:function:my-function"
+# Wrap a Lambda function as an MCP tool target
+target = gateway.create_gateway_target_and_wait(
+    gatewayIdentifier=gw["gatewayId"],
+    name="MyTool",
+    targetConfiguration={
+        "mcp": {
+            "lambda": {
+                "lambdaArn": "arn:aws:lambda:us-east-1:123456789012:function:my-function",
+                "toolSchema": {
+                    "inlinePayload": [
+                        {
+                            "name": "my_tool",
+                            "description": "What this tool does",
+                            "inputSchema": {"type": "object", "properties": {}},
+                        }
+                    ]
+                },
+            }
+        }
+    },
 )
-
-# 1-click integration
-slack_tools = gateway.enable_integration("slack")
 ```
+
+Agents call gateway tools over MCP against `gw["gatewayUrl"]`, not through a Python method on `GatewayClient` - see the Gateway service reference for the MCP client pattern.
 
 ### Add Policy Rules
 
+`bedrock_agentcore.policy` exports `PolicyEngineClient`, not `PolicyClient`, and its methods take `policy_engine_id=`, not `gateway_id=`:
+
 ```python
-from bedrock_agentcore.policy import PolicyClient
+from bedrock_agentcore.policy import PolicyEngineClient
 
-policy = PolicyClient()
+policy = PolicyEngineClient(region_name="us-east-1")
 
-# Natural language policy
-policy.create_from_description(
-    gateway_id="my-gateway",
-    description="Only allow read operations on customer data"
-)
+engine = policy.create_or_get_policy_engine(name="MyPolicyEngine")
 
 # Cedar policy
-policy.create_from_cedar(
-    gateway_id="my-gateway",
-    policy="""
+policy.create_or_get_policy(
+    policy_engine_id=engine["policyEngineId"],
+    name="read_only_customer_data",
+    definition={
+        "cedar": {
+            "statement": """
     permit(
         principal,
         action == Action::"read",
         resource in ResourceGroup::"customer-data"
     );
     """
+        }
+    },
 )
 ```
 
@@ -370,14 +433,14 @@ Ensure your IAM user/role has the required permissions:
 <details>
 <summary><b>Agent not responding</b></summary>
 
-1. Check agent logs:
+1. Check agent logs (log group includes the endpoint name):
    ```bash
-   agentcore logs my-agent
+   aws logs tail /aws/bedrock-agentcore/runtimes/<agent_id>-DEFAULT --follow
    ```
 
 2. Verify deployment status:
    ```bash
-   agentcore describe my-agent
+   agentcore status --agent helloagent --verbose
    ```
 
 3. Ensure the agent is in `ACTIVE` state

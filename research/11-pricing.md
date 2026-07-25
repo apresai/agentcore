@@ -16,8 +16,8 @@ A comprehensive guide to understanding and optimizing costs for Amazon Bedrock A
    - [Gateway](#gateway)
    - [Identity](#identity)
    - [Memory](#memory)
-   - [Policy (Preview)](#policy-preview)
-   - [Evaluations (Preview)](#evaluations-preview)
+   - [Policy](#policy)
+   - [Evaluations](#evaluations)
    - [Observability](#observability)
 5. [Cost Scenarios](#cost-scenarios)
 6. [Cost Calculator](#cost-calculator)
@@ -50,8 +50,8 @@ A comprehensive guide to understanding and optimizing costs for Amazon Bedrock A
 | | | Long-term Storage (built-in) | $0.75/1,000 records/month |
 | | | Long-term Storage (self-managed) | $0.25/1,000 records/month |
 | | | Long-term Retrieval | $0.50/1,000 retrievals |
-| **Policy** | Per Request | Authorization Requests | $0.000025/request |
-| | | NL Policy Authoring | $0.13/1,000 input tokens |
+| **Policy** | Per Input Token (GA) | Authorization Requests | Billed per million user input tokens — rate not independently re-verified this pass, see the Policy section below |
+| | | NL Policy Authoring | $0.13/1,000 input tokens (unverified — see Policy section) |
 | **Evaluations** | Per Evaluation | Built-in (input tokens) | $0.0024/1,000 tokens |
 | | | Built-in (output tokens) | $0.012/1,000 tokens |
 | | | Custom Evaluators | $1.50/1,000 evaluations |
@@ -206,17 +206,9 @@ aws budgets create-budget \
   }]'
 ```
 
-### Preview Services (Currently Free)
+### Policy and Evaluations Are Now Billed
 
-The following services are in preview and **currently have no charges**:
-
-- **Policy** - Authorization requests and policy authoring
-- **Evaluations** - Built-in and custom evaluations
-
-Take advantage of these services during the preview period to:
-- Develop and test policy enforcement patterns
-- Build evaluation pipelines for agent quality
-- Familiarize with features before GA pricing begins
+Policy (GA March 3, 2026) and Evaluations (GA March 31, 2026) are no longer in preview and are no longer free — both are billed based on usage (see the Policy and Evaluations sections below). Free Tier credits still apply to them like any other AgentCore service.
 
 ---
 
@@ -630,22 +622,22 @@ AgentCore cost: $37.50
 
 ---
 
-### Policy (Preview)
+### Policy
 
 Policy provides Cedar-based deterministic access control for agent actions.
 
 #### Pricing Metrics
 
-| Operation | Price |
+AWS bills Policy per one million user input tokens processed for authorization requests performed during agent execution — a token-based metric. This repo does not have a currently-verified $ rate for that metric; the table below (flat per-request, and per-1,000-tokens for NL authoring) reflects an older pricing model and is retained only as a placeholder pending re-verification — do not use it for a cost estimate. Get the current rate from the [AgentCore pricing page](https://aws.amazon.com/bedrock/agentcore/pricing/).
+
+| Operation | Price (STALE — do not use, see note above) |
 |-----------|-------|
 | Authorization request | $0.000025/request |
 | Natural language policy authoring | $0.13/1,000 input tokens |
 
 #### Current Status
 
-**Preview Period:** Currently offered at no charge during preview.
-
-Post-preview pricing will follow the metrics above.
+**General Availability:** Policy reached GA on March 3, 2026, and is billed — it is no longer free.
 
 #### What's Included
 
@@ -670,25 +662,22 @@ Cost: Based on input tokens processed
 - 100,000 monthly sessions
 - 5 tool calls per session
 - 1 authorization request per tool call
-- 20,000 input tokens for policy authoring (one-time)
 
-**Calculation (Post-Preview):**
+**Cost drivers (no worked total — the per-request table above is stale and the current per-token rate is not verified):**
 
 ```
-Authorization requests:
-  100,000 sessions × 5 tool calls × 1 auth/call = 500,000 requests
-  500,000 × $0.000025 = $12.50
+Authorization request volume:
+  100,000 sessions × 5 tool calls × 1 auth/call = 500,000 authorization requests
 
-Policy authoring (one-time):
-  20,000 tokens × ($0.13 / 1,000) = $2.60
-
-Monthly recurring: $12.50
-One-time setup: $2.60
+Each authorization request's cost scales with the input tokens it processes
+(context, principal attributes, tool schema) at the per-million-input-token
+rate on the pricing page — not with request count directly. A worked dollar
+total requires that rate, which was not confirmed this pass.
 ```
 
 ---
 
-### Evaluations (Preview)
+### Evaluations
 
 AgentCore Evaluations provides quality assessment using LLM-as-a-Judge methodology.
 
@@ -702,9 +691,7 @@ AgentCore Evaluations provides quality assessment using LLM-as-a-Judge methodolo
 
 #### Current Status
 
-**Preview Period:** Currently offered at no charge during preview.
-
-Post-preview pricing will follow the metrics above.
+**General Availability:** Evaluations reached GA on March 31, 2026, and is billed — AgentCore charges based on input and output tokens processed during evaluation, matching the token-based model above. It is no longer free.
 
 #### Built-in Evaluators
 
@@ -734,7 +721,7 @@ Post-preview pricing will follow the metrics above.
 - 15,000 input tokens per evaluation
 - 300 output tokens per evaluation
 
-**Calculation (Post-Preview):**
+**Calculation:**
 
 ```
 Total interactions: 15,000
@@ -1198,15 +1185,22 @@ Gateway charges per operation. Batch when possible.
 
 **Example:**
 ```python
-# Before: Frequent ListTools calls
-for task in tasks:
-    tools = gateway.list_tools()  # $0.000005 each
-    result = gateway.invoke_tool(tools[0], task)
+# Tool listing and invocation happen over MCP against the gateway's endpoint,
+# not on GatewayClient (which manages resources only).
 
-# After: Cache tool list
-tools = gateway.list_tools()  # Once
+# Before: a ListTools round trip per task
 for task in tasks:
-    result = gateway.invoke_tool(tools[0], task)
+    with mcp_client:
+        tools = mcp_client.list_tools_sync()   # billed per call
+        agent = Agent(tools=tools)
+        result = agent(task)
+
+# After: list once, reuse for every task
+with mcp_client:
+    tools = mcp_client.list_tools_sync()       # once
+    agent = Agent(tools=tools)
+    for task in tasks:
+        result = agent(task)
 ```
 
 ---
@@ -1275,15 +1269,15 @@ observability_config:
 
 ---
 
-### Strategy 8: Use Preview Services
+### Strategy 8: Control Policy and Evaluations Volume
 
 **The Opportunity:**
-Policy and Evaluations are currently free during preview.
+Policy and Evaluations are GA and billed by usage (authorization-request tokens for Policy, input/output tokens for Evaluations) — neither is free anymore, so the volume you generate now has a direct cost.
 
 **Implementation:**
-- Implement Policy enforcement now
-- Build evaluation pipelines now
-- Establish baselines before GA pricing
+- Run Policy in `LOG_ONLY` mode only as long as needed for validation, then switch to `ENFORCE` rather than leaving it on indefinitely
+- Scope evaluation sampling rates deliberately (see Strategy 6) instead of defaulting to 100% in production
+- Track Policy and Evaluations line items separately in Cost Explorer once you enable them, since both are now new recurring costs
 
 ---
 
@@ -1630,8 +1624,8 @@ A: No. AgentCore has no minimum fees, no upfront commitments, and no long-term c
 **Q: How does the $200 Free Tier work?**
 A: New AWS customers receive $200 in credits that apply to all AgentCore services. Credits are consumed as you use services and do not have a time-based expiration under standard AWS Free Tier terms.
 
-**Q: Are Preview services really free?**
-A: Yes. Policy and Evaluations are currently in preview and have no charges. Use them now to build familiarity before GA pricing begins.
+**Q: Are Policy and Evaluations still free preview services?**
+A: No. Policy reached GA on March 3, 2026, and Evaluations on March 31, 2026 — both are now billed based on usage.
 
 ### Compute Pricing Questions
 
@@ -1678,10 +1672,10 @@ A: AWS Budgets can send alerts but won't automatically stop services. For hard l
 ### Technical Questions
 
 **Q: Is there a maximum session duration?**
-A: AgentCore Runtime supports sessions up to 8 hours (28,800 seconds).
+A: It depends which timeout you mean — these are four distinct quotas. A single synchronous request is capped at 15 minutes (fixed, not adjustable). A session is recycled after 15 minutes of inactivity by default (adjustable 60–28,800s via `idleRuntimeSessionTimeout`). The session's overall maximum lifetime is 8 hours by default (adjustable 60–28,800s via `maxLifetime`). Asynchronous jobs have a separate, fixed 8-hour cap.
 
 **Q: What regions is AgentCore available in?**
-A: Currently available in us-east-1, us-west-2, ap-southeast-2, and eu-central-1. Check AWS documentation for the latest availability.
+A: Core services (Runtime, Gateway, Identity, Built-in Tools, Observability) are available in 19 commercial regions plus AWS GovCloud (US-West); commonly used ones are us-east-1, us-west-2, eu-central-1, and ap-southeast-2. Other features (Memory, Policy, Evaluations, etc.) are available in narrower, feature-specific subsets. See the live [AgentCore Supported AWS Regions](https://docs.aws.amazon.com/bedrock-agentcore/latest/devguide/agentcore-regions.html) page for the current, per-feature matrix.
 
 **Q: Are data transfer costs included?**
 A: No. Network data transfer is charged at standard EC2 rates and is separate from AgentCore service pricing.
@@ -1718,5 +1712,5 @@ A: No. Network data transfer is charged at standard EC2 rates and is separate fr
 
 ---
 
-*Last updated: February 2026*
+*Last updated: July 2026*
 *Prices are subject to change. Always refer to the [official AWS pricing page](https://aws.amazon.com/bedrock/agentcore/pricing/) for current rates.*

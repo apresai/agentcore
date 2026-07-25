@@ -39,18 +39,12 @@ Expected output:
     ============================================================
 """
 
-import os
 import time
 import asyncio
 import boto3
 from botocore.exceptions import ClientError
 
-# Optional: load environment variables from .env file
-try:
-    from dotenv import load_dotenv
-    load_dotenv()
-except ImportError:
-    pass
+from config import AWS_REGION, BROWSER_ID, SESSION_TIMEOUT_SECONDS
 
 
 def start_browser_session(client, browser_id: str, session_name: str) -> dict:
@@ -59,7 +53,7 @@ def start_browser_session(client, browser_id: str, session_name: str) -> dict:
     response = client.start_browser_session(
         browserIdentifier=browser_id,
         name=session_name,
-        sessionTimeoutSeconds=900  # 15 minutes
+        sessionTimeoutSeconds=SESSION_TIMEOUT_SECONDS
     )
 
     return response
@@ -123,12 +117,10 @@ def main():
     print("  You can watch everything via Live View.")
     print("  Like the Guide itself: comprehensive and observable.")
 
-    region = os.getenv("AWS_REGION", "us-east-1")
-
     # Initialize data plane client
-    client = boto3.client('bedrock-agentcore', region_name=region)
+    client = boto3.client('bedrock-agentcore', region_name=AWS_REGION)
 
-    browser_id = "aws.browser.v1"  # AWS managed browser (no setup required)
+    browser_id = BROWSER_ID  # AWS managed browser (no setup required)
     session_id = None
 
     try:
@@ -150,14 +142,14 @@ def main():
             session_info = get_session_info(client, browser_id, session_id)
             status = session_info['status']
 
-            if status in ('ACTIVE', 'READY'):
+            if status == 'READY':
                 print(f"✓ Session is {status}")
                 # Get URLs from streams field
                 streams = session_info.get('streams', {})
                 automation_url = streams.get('automationStream', {}).get('streamEndpoint')
                 live_view_url = streams.get('liveViewStream', {}).get('streamEndpoint')
                 break
-            elif status in ('FAILED', 'STOPPED'):
+            elif status == 'TERMINATED':
                 raise Exception(f"Session failed: {session_info}")
             if i % 10 == 0 and i > 0:
                 print(f"  Status: {status}...")

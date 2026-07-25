@@ -32,7 +32,7 @@ This tutorial builds a **supervisor + specialist** multi-agent system on AgentCo
 boto3>=1.34.0
 strands-agents>=0.1.0
 bedrock-agentcore>=1.0.0
-python-dotenv>=1.0.0
+bedrock-agentcore-starter-toolkit>=0.1.0
 ```
 
 ## Getting Started
@@ -381,10 +381,11 @@ if __name__ == "__main__":
     app.run()
 ```
 
-Deploy with 8-hour timeout for extended incidents:
+Deploy with the 8-hour max session lifetime for extended incidents:
 
 ```bash
-agentcore deploy --name sre-assistant --memory 2048 --timeout 28800
+agentcore configure --name sreassistant --max-lifetime 28800
+agentcore deploy --agent sreassistant
 ```
 
 ### Step 5: Run It
@@ -460,7 +461,7 @@ Every tool calls real AWS APIs — CloudWatch Logs, CloudWatch Metrics, Containe
 ## Troubleshooting
 
 **Issue: Sub-agent calls timeout**
-Solution: Increase the Runtime timeout. Long CloudWatch Log Insights queries can take 30+ seconds.
+Solution: Long CloudWatch Log Insights queries can take 30+ seconds each, and a supervisor issuing several in sequence can run past the default idle session timeout. Raise it with `agentcore configure --idle-timeout` (up to 28800 seconds) rather than assuming the fixed 15-minute synchronous request limit is the culprit -- that one is not adjustable.
 
 **Issue: Too many concurrent model calls**
 Solution: Bedrock has per-model rate limits. Add retry logic with exponential backoff to sub-agent tool calls.

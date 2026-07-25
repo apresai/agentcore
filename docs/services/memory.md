@@ -97,118 +97,121 @@ Memory stores can be shared across multiple agents:
 
 ## Quick Start
 
-### Create a Memory Session
+There is no `create_session()`/`add_message()`/`get_messages()`/`store_fact()`/`get_facts()`. Create a memory resource once (with a long-term strategy if you want automatic fact extraction), then record and retrieve conversation turns directly against it.
+
+### Create a Memory Resource
 
 ```python
 from bedrock_agentcore.memory import MemoryClient
 
-memory = MemoryClient()
+memory = MemoryClient(region_name="us-east-1")
 
-# Create session for short-term memory
-session = memory.create_session(
-    agent_id="my-agent",
-    user_id="user-123"
+# Waits for the memory to reach ACTIVE. A semanticMemoryStrategy is what
+# gives you automatic long-term fact extraction below.
+mem = memory.create_memory_and_wait(
+    name="MyAgentMemory",
+    strategies=[
+        {"semanticMemoryStrategy": {"name": "FactExtractor", "namespaces": ["facts"]}},
+    ],
 )
 
-print(f"Session ID: {session.session_id}")
+memory_id = mem["memoryId"]
 ```
 
 ### Add Messages (Short-Term)
 
+`messages` is a list of `(text, role)` tuples, not `role=`/`content=` keyword calls:
+
 ```python
-# Add conversation messages
-session.add_message(
-    role="user",
-    content="My name is Alice and I work at Acme Corp."
+# Store a conversation turn
+memory.create_event(
+    memory_id=memory_id,
+    actor_id="user-123",
+    session_id="session-abc",
+    messages=[
+        ("My name is Alice and I work at Acme Corp.", "USER"),
+        ("Nice to meet you, Alice! How can I help you today?", "ASSISTANT"),
+    ],
 )
 
-session.add_message(
-    role="assistant",
-    content="Nice to meet you, Alice! How can I help you today?"
+# Later in the conversation, retrieve recent turns
+turns = memory.get_last_k_turns(
+    memory_id=memory_id,
+    actor_id="user-123",
+    session_id="session-abc",
+    k=5,
 )
-
-# Later in conversation, retrieve context
-messages = session.get_messages()
 # Agent knows user is Alice from Acme Corp
 ```
 
-### Store Facts (Long-Term)
+### Retrieve Facts (Long-Term)
+
+Long-term facts aren't stored with an explicit `store_fact()` call - the `semanticMemoryStrategy` attached above extracts them automatically from events. Retrieve them with a semantic query:
 
 ```python
-# Store explicit facts
-memory.store_fact(
-    agent_id="my-agent",
-    user_id="user-123",
-    fact="User prefers formal communication style"
+memories = memory.retrieve_memories(
+    memory_id=memory_id,
+    namespace="facts",
+    query="communication preferences and timezone",
+    actor_id="user-123",
+    top_k=5,
 )
 
-memory.store_fact(
-    agent_id="my-agent",
-    user_id="user-123",
-    fact="User's timezone is PST"
-)
-
-# Retrieve facts in future sessions
-facts = memory.get_facts(
-    agent_id="my-agent",
-    user_id="user-123"
-)
-
-for fact in facts:
-    print(f"- {fact.content}")
+for record in memories:
+    print(f"- {record['content']['text']}")
 ```
 
 ### Automatic Insight Extraction
 
+There is no `extract_insights=True` flag - extraction is enabled by attaching a long-term strategy (`semanticMemoryStrategy`, `userPreferenceMemoryStrategy`, `summaryMemoryStrategy`, or `episodicMemoryStrategy`) when the memory is created, as shown above. Once attached, insights are extracted automatically from every event:
+
 ```python
-# Enable automatic extraction
-session = memory.create_session(
-    agent_id="my-agent",
-    user_id="user-123",
-    extract_insights=True  # Automatically extracts facts
+memory.create_event(
+    memory_id=memory_id,
+    actor_id="user-123",
+    session_id="session-abc",
+    messages=[
+        ("I'm allergic to peanuts, so please avoid any recommendations with nuts.", "USER"),
+    ],
 )
 
-# During conversation, insights are auto-extracted
-session.add_message(
-    role="user",
-    content="I'm allergic to peanuts, so please avoid any recommendations with nuts."
-)
-
-# System automatically extracts and stores:
-# "User is allergic to peanuts"
+# The FactExtractor strategy extracts and stores something like:
+# "User is allergic to peanuts" - retrievable later via retrieve_memories()
 ```
 
 ---
 
 ## boto3 Alternative
 
+`bedrock-agentcore-memory` isn't a real botocore service - memory events live on the `bedrock-agentcore` data-plane client, and the memory resource itself is created via `bedrock-agentcore-control`. There is no `create_session`/`put_message`/`get_messages`/`put_memory_record` operation on either.
+
 ```python
 import boto3
 
-memory = boto3.client('bedrock-agentcore-memory')
+control_client = boto3.client('bedrock-agentcore-control', region_name='us-east-1')
+data_client = boto3.client('bedrock-agentcore', region_name='us-east-1')
 
-# Create session
-response = memory.create_session(
-    agentId='my-agent',
-    userId='user-123'
+# Create the memory resource (raw output nests everything under a `memory` key)
+response = control_client.create_memory(
+    name='CustomerSupportMemory',
+    eventExpiryDuration=90,  # days, 3-365, required
 )
-session_id = response['sessionId']
+memory_id = response['memory']['id']
 
-# Add message
-memory.put_message(
-    sessionId=session_id,
-    role='user',
-    content='Hello!'
+# Store a conversation turn
+data_client.create_event(
+    memoryId=memory_id,
+    actorId='user-123',
+    sessionId='session-abc',
+    eventTimestamp='2024-01-15T10:30:00Z',
+    payload=[{'conversational': {'role': 'USER', 'content': {'text': 'Hello!'}}}],
 )
 
-# Get messages
-messages = memory.get_messages(sessionId=session_id)
-
-# Store long-term fact
-memory.put_memory_record(
-    agentId='my-agent',
-    userId='user-123',
-    content='User prefers email communication'
+# List recent events
+events = data_client.list_events(
+    memoryId=memory_id,
+    actorId='user-123',
+    sessionId='session-abc',
 )
 ```
 
@@ -216,62 +219,85 @@ memory.put_memory_record(
 
 ## Framework Integration
 
+There is no `strands.memory.AgentCoreMemory`, `langgraph.checkpoint.agentcore.AgentCoreMemorySaver`, or `llama_index.storage.chat_store.agentcore.AgentCoreChatStore` - none of these frameworks ship an AgentCore-specific memory adapter. Wire memory in directly with `MemoryClient`/`MemorySessionManager` instead.
+
 ### Strands
 
 ```python
 from strands import Agent
 from strands.models import BedrockModel
-from strands.memory import AgentCoreMemory
+from bedrock_agentcore.memory import MemoryClient, MemorySessionManager
 
-model = BedrockModel(model_id="anthropic.claude-sonnet-4-6")
-
-# Configure memory
-memory = AgentCoreMemory(
-    agent_id="my-agent",
-    short_term=True,
-    long_term=True
+# Create the memory resource once (e.g. during setup, not per-request)
+memory_client = MemoryClient(region_name="us-east-1")
+memory = memory_client.create_memory_and_wait(
+    name="StrandsAgentMemory",
+    strategies=[
+        {"userPreferenceMemoryStrategy": {"name": "PreferenceLearner", "namespaces": ["preferences"]}},
+    ],
 )
 
-agent = Agent(
-    model=model,
-    memory=memory,
-    system_prompt="You are a helpful assistant."
-)
+# Per-session turn tracking and long-term search go through MemorySessionManager
+session_manager = MemorySessionManager(memory_id=memory["memoryId"], region_name="us-east-1")
 
-# Memory is automatically managed
-response = agent.run(
-    "My name is Alice",
-    user_id="user-123"
-)
+model = BedrockModel(model_id="us.anthropic.claude-haiku-4-5-20251001-v1:0", region_name="us-east-1")
+agent = Agent(model=model, system_prompt="You are a helpful assistant.")
+
+def chat(actor_id: str, session_id: str, message: str) -> str:
+    memories = session_manager.search_long_term_memories(
+        query=message, namespace_prefix=f"preferences/{actor_id}", top_k=5
+    )
+    context = "\n".join(m["content"]["text"] for m in memories)
+
+    response = agent(f"Known preferences:\n{context}\n\nUser: {message}")
+
+    session_manager.add_turns(
+        actor_id=actor_id,
+        session_id=session_id,
+        messages=[(message, "USER"), (str(response), "ASSISTANT")],
+    )
+    return str(response)
 ```
 
 ### LangGraph
 
-```python
-from langgraph.checkpoint.agentcore import AgentCoreMemorySaver
-
-# Use as checkpoint saver
-memory_saver = AgentCoreMemorySaver(agent_id="my-agent")
-
-app = workflow.compile(checkpointer=memory_saver)
-
-# State is automatically persisted
-config = {"configurable": {"thread_id": "user-123"}}
-response = app.invoke({"messages": [...]}, config)
-```
-
-### LlamaIndex
+LangGraph's own `BaseCheckpointSaver` is the extension point - back it with `MemoryClient` rather than reaching for a nonexistent AgentCore-provided saver:
 
 ```python
-from llama_index.storage.chat_store.agentcore import AgentCoreChatStore
+from langgraph.graph import StateGraph
+from langgraph.checkpoint.memory import MemorySaver
+from bedrock_agentcore.memory import MemoryClient
 
-chat_store = AgentCoreChatStore(agent_id="my-agent")
+class AgentCoreCheckpointer(MemorySaver):
+    """LangGraph checkpointer backed by AgentCore Memory."""
 
-# Use with chat engine
-chat_engine = index.as_chat_engine(
-    chat_store=chat_store,
-    chat_mode="context"
-)
+    def __init__(self, memory_id: str, actor_id: str):
+        self.memory_id = memory_id
+        self.actor_id = actor_id
+        self.client = MemoryClient(region_name="us-east-1")
+
+    def get(self, thread_id: str):
+        turns = self.client.get_last_k_turns(
+            memory_id=self.memory_id,
+            actor_id=self.actor_id,
+            session_id=thread_id,
+            k=1,
+        )
+        return turns[-1] if turns else None
+
+    def put(self, thread_id: str, checkpoint: dict):
+        self.client.create_event(
+            memory_id=self.memory_id,
+            actor_id=self.actor_id,
+            session_id=thread_id,
+            messages=[(str(checkpoint), "OTHER")],
+        )
+
+checkpointer = AgentCoreCheckpointer(memory_id="mem-abc123xyz", actor_id="user-123")
+
+graph = StateGraph(AgentState)
+# ... build graph ...
+agent = graph.compile(checkpointer=checkpointer)
 ```
 
 ---
@@ -280,30 +306,37 @@ chat_engine = index.as_chat_engine(
 
 ### Multi-Agent Collaboration
 
+There is no `create_memory_store(shared=True)` - a single memory resource shared by multiple agents *is* the shared store, since events and long-term facts are keyed by `actor_id`/namespace, not by agent:
+
 ```python
-# Create shared memory store
-memory = MemoryClient()
+from bedrock_agentcore.memory import MemoryClient
 
-shared_store = memory.create_memory_store(
-    name="customer-context",
-    shared=True
+memory = MemoryClient(region_name="us-east-1")
+
+shared_memory = memory.create_memory_and_wait(
+    name="TeamSharedMemory",
+    strategies=[
+        {"semanticMemoryStrategy": {"name": "FactExtractor", "namespaces": ["shared-facts"]}},
+    ],
+)
+memory_id = shared_memory["memoryId"]
+
+# Agent A writes to the shared session
+memory.create_event(
+    memory_id=memory_id,
+    actor_id="user-123",
+    session_id="session-abc",
+    messages=[("I have a billing issue", "USER")],
 )
 
-# Agent A writes
-session_a = memory.create_session(
-    agent_id="support-agent",
-    user_id="user-123",
-    memory_store_id=shared_store.id
+# Agent B reads the same session
+turns = memory.get_last_k_turns(
+    memory_id=memory_id,
+    actor_id="user-123",
+    session_id="session-abc",
+    k=5,
 )
-session_a.add_message(role="user", content="I have a billing issue")
-
-# Agent B reads same context
-session_b = memory.create_session(
-    agent_id="billing-agent",
-    user_id="user-123",
-    memory_store_id=shared_store.id
-)
-# Agent B sees the billing issue from Agent A's session
+# Agent B sees the billing issue from Agent A's turn
 ```
 
 ---
@@ -318,37 +351,48 @@ session_b = memory.create_session(
 | Session-scoped | Single task context |
 | Shared store | Multi-agent workflows |
 
-### 2. Clean Up Old Sessions
+### 2. Set an Appropriate Event Expiry
+
+There is no per-session `delete_session()` - short-term events age out automatically based on `eventExpiryDuration` (3-365 days, set when the memory is created). Pick a value that matches how long conversations need to stay in short-term memory:
 
 ```python
-# Delete old sessions to manage costs
-memory.delete_session(session_id=old_session_id)
+memory.create_memory_and_wait(
+    name="MyAgentMemory",
+    event_expiry_days=30,
+    strategies=[...],
+)
 ```
 
 ### 3. Use Semantic Search for Retrieval
 
 ```python
-# Search long-term memory semantically
-relevant_facts = memory.search_facts(
-    agent_id="my-agent",
-    user_id="user-123",
+# Search long-term memory semantically - there is no search_facts() method
+relevant_facts = memory.retrieve_memories(
+    memory_id=memory_id,
+    namespace="preferences",
     query="travel preferences",
-    limit=5
+    actor_id="user-123",
+    top_k=5,
 )
 ```
 
 ### 4. Handle Memory Gracefully
 
 ```python
-# Check if memory exists before assuming
-facts = memory.get_facts(agent_id="my-agent", user_id="user-123")
+# Check if any facts exist before assuming - there is no get_facts() method
+facts = memory.retrieve_memories(
+    memory_id=memory_id,
+    namespace="facts",
+    query="user context",
+    actor_id="user-123",
+)
 
 if not facts:
     # New user, no prior context
     system_prompt = "You are a helpful assistant."
 else:
     # Build context from facts
-    context = "\n".join([f.content for f in facts])
+    context = "\n".join(f["content"]["text"] for f in facts)
     system_prompt = f"You are a helpful assistant. User context:\n{context}"
 ```
 
@@ -363,7 +407,7 @@ else:
 | Search/retrieval | Per operation |
 
 > [!TIP]
-> Delete old sessions to avoid unnecessary storage costs.
+> Set `event_expiry_days` to the shortest retention that fits your use case - there's no manual per-session delete, so this is what keeps short-term storage costs down.
 
 ---
 

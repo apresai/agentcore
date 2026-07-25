@@ -23,11 +23,11 @@ A minimal example demonstrating how to create and deploy an AI agent with AWS Be
 pip install -r requirements.txt
 
 # Test locally
-python main.py
+python main.py --demo
 
 # Deploy to AWS
-agentcore configure -e main.py
-agentcore launch
+agentcore configure -e main.py -n overview_demo -dt direct_code_deploy -ni
+agentcore deploy
 agentcore invoke '{"prompt": "What is AgentCore?"}'
 ```
 
@@ -36,6 +36,7 @@ agentcore invoke '{"prompt": "What is AgentCore?"}'
 | File | Description |
 |------|-------------|
 | `main.py` | Agent code with local testing and deployment |
+| `config.py` | Region/model settings (env-overridable) |
 | `requirements.txt` | Python dependencies |
 | `README.md` | This file |
 
@@ -58,8 +59,8 @@ Local test passed
 [Step 3] Ready for deployment!
 Run these commands to deploy:
 ----------------------------------------
-  agentcore configure -e main.py
-  agentcore launch
+  agentcore configure -e main.py -n overview_demo -dt direct_code_deploy -ni
+  agentcore deploy
   agentcore invoke '{"prompt": "Hello!"}'
 ----------------------------------------
 

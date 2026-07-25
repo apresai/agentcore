@@ -2,7 +2,7 @@
 
 > Automated quality assessment using LLM-as-a-Judge
 
-**Status: Preview** (No charges during preview)
+**Status: GA** (generally available 2026-03-31)
 
 ## Overview
 
@@ -38,148 +38,163 @@ AgentCore Evaluations provides purpose-built evaluation tools to measure how wel
 
 ## Quick Start
 
+The real submodule is `bedrock_agentcore.evaluation` (singular), exposing `EvaluationClient` - there is no `bedrock_agentcore.evaluations` module or `EvaluationsClient` class.
+
 ### Create Evaluator
 
 ```python
-from bedrock_agentcore.evaluations import EvaluationsClient
+from bedrock_agentcore.evaluation import EvaluationClient
 
-evals = EvaluationsClient()
+evals = EvaluationClient(region_name="us-east-1")
 
-# Create custom evaluator
-evaluator = evals.create_evaluator(
-    name="helpfulness",
+# Create a custom LLM-as-a-judge evaluator and wait for it to become ACTIVE
+evaluator = evals.create_evaluator_and_wait(
+    evaluatorName="helpfulness",
+    level="TRACE",
     description="Evaluate if the response is helpful",
-    criteria="""
-    Score the response on helpfulness (1-5):
-    5: Completely addresses the user's need with actionable information
-    4: Mostly helpful with minor gaps
-    3: Partially helpful
-    2: Minimally helpful
-    1: Not helpful at all
-    """,
-    model_id="anthropic.claude-sonnet-4-6"
+    evaluatorConfig={
+        "llmAsAJudge": {
+            "modelConfig": {
+                "bedrockEvaluatorModelConfig": {
+                    "modelId": "us.anthropic.claude-haiku-4-5-20251001-v1:0",
+                    "inferenceConfig": {"maxTokens": 500, "temperature": 1.0},
+                }
+            },
+            "instructions": (
+                "Score the response on helpfulness (1-5). "
+                "Context: {context} Response: {assistant_turn}"
+            ),
+            "ratingScale": {
+                "numerical": [
+                    {"value": 1.0, "label": "Excellent", "definition": "Completely addresses the user's need"},
+                    {"value": 0.5, "label": "Average", "definition": "Partially helpful"},
+                    {"value": 0.0, "label": "Poor", "definition": "Not helpful at all"},
+                ]
+            },
+        }
+    },
 )
+
+evaluator_id = evaluator["evaluatorId"]
 ```
 
 ### Run Online Evaluation
 
 ```python
-# Enable online evaluation for agent
-evals.enable_online_evaluation(
-    agent_id="my-agent",
-    evaluators=["helpfulness", "accuracy", "safety"],
-    sample_rate=0.1  # Evaluate 10% of responses
+# Continuously sample and score production sessions
+config = evals.create_online_evaluation_config_and_wait(
+    onlineEvaluationConfigName="production_eval_config",
+    description="Continuous evaluation of production agent",
+    rule={"samplingConfig": {"samplingPercentage": 10.0}},
+    dataSourceConfig={
+        "cloudWatchLogs": {
+            "logGroupNames": ["/aws/bedrock-agentcore/runtimes/my-agent-DEFAULT"],
+            "serviceNames": ["my_agent.DEFAULT"],
+        }
+    },
+    evaluators=[{"evaluatorId": "Builtin.Helpfulness"}, {"evaluatorId": evaluator_id}],
+    evaluationExecutionRoleArn="arn:aws:iam::123456789012:role/AgentCoreEvaluationRole",
+    enableOnCreate=True,
 )
 
 # Scores are automatically collected
-# View in Observability dashboard
+# View in the CloudWatch GenAI Observability dashboard
 ```
 
 ### Run On-Demand Evaluation
 
+`run()` collects spans for a session from CloudWatch and evaluates them - there is no `evaluate(trace_ids=...)` shortcut on the client itself:
+
 ```python
-# Evaluate historical traces
-results = evals.evaluate(
+# Evaluate a specific agent session
+results = evals.run(
+    evaluator_ids=["Builtin.Helpfulness", evaluator_id],
+    session_id="session-abc",
     agent_id="my-agent",
-    evaluators=["helpfulness"],
-    trace_ids=["trace-1", "trace-2", "trace-3"]
 )
 
 for result in results:
-    print(f"Trace: {result.trace_id}")
-    print(f"  Score: {result.score}/5")
-    print(f"  Reasoning: {result.reasoning}")
+    print(f"Evaluator: {result['evaluatorId']}")
+    print(f"  Score: {result.get('value')}")
+    print(f"  Reasoning: {result.get('explanation')}")
 ```
 
 ### Compare Models
 
-```python
-# A/B test different models
-results = evals.compare(
-    agent_id="my-agent",
-    test_cases=[
-        {"input": "What is AgentCore?"},
-        {"input": "How do I deploy an agent?"},
-    ],
-    models=[
-        "anthropic.claude-sonnet-4-6",
-        "us.anthropic.claude-haiku-4-5-20251001-v1:0"
-    ],
-    evaluators=["helpfulness", "accuracy"]
-)
+There is no `compare()` method - run the same evaluators against sessions produced by each model and compare the results yourself:
 
-# Results show which model performs better
+```python
+results_a = evals.run(evaluator_ids=["Builtin.Helpfulness"], session_id="session-model-a", agent_id="my-agent")
+results_b = evals.run(evaluator_ids=["Builtin.Helpfulness"], session_id="session-model-b", agent_id="my-agent")
+
+avg_a = sum(r["value"] for r in results_a) / len(results_a)
+avg_b = sum(r["value"] for r in results_b) / len(results_b)
+print(f"Model A: {avg_a:.2f}, Model B: {avg_b:.2f}")
 ```
 
 ## Built-in Evaluators
 
-| Evaluator | Description |
-|-----------|-------------|
-| **Helpfulness** | Does the response address the user's need? |
-| **Accuracy** | Is the information factually correct? |
-| **Coherence** | Is the response well-organized and clear? |
-| **Safety** | Is the response free from harmful content? |
-| **Relevance** | Does the response stay on topic? |
+Built-in evaluator IDs use a `Builtin.` prefix (e.g. `Builtin.Helpfulness`), not the bare names below:
+
+| Evaluator ID | Description |
+|--------------|-------------|
+| `Builtin.Helpfulness` | Does the response address the user's need? |
+| `Builtin.Correctness` | Is the information factually correct? |
+| `Builtin.Coherence` | Is the response well-organized and clear? |
+| `Builtin.Harmfulness` | Detects potentially harmful content |
+| `Builtin.ResponseRelevance` | Does the response stay on topic? |
+
+See the [detailed research](../../research/09-evaluations.md#built-in-evaluators) for the full list.
 
 ## Custom Evaluator Example
 
+There is no `criteria=`/`scoring=` shorthand - a pass/fail evaluator is an `llmAsAJudge` config with a `categorical` rating scale instead of `numerical`:
+
 ```python
-# Create compliance evaluator
-compliance_evaluator = evals.create_evaluator(
-    name="financial-compliance",
+compliance_evaluator = evals.create_evaluator_and_wait(
+    evaluatorName="financial-compliance",
+    level="TRACE",
     description="Check financial advice compliance",
-    criteria="""
-    Evaluate if the response follows financial compliance rules:
-
-    PASS if:
-    - Includes required disclaimers
-    - Does not guarantee returns
-    - Recommends consulting a financial advisor
-
-    FAIL if:
-    - Makes specific investment recommendations
-    - Promises specific returns
-    - Missing disclaimers
-    """,
-    scoring="pass_fail"  # Binary scoring
+    evaluatorConfig={
+        "llmAsAJudge": {
+            "modelConfig": {
+                "bedrockEvaluatorModelConfig": {
+                    "modelId": "us.anthropic.claude-haiku-4-5-20251001-v1:0",
+                    "inferenceConfig": {"maxTokens": 500, "temperature": 1.0},
+                }
+            },
+            "instructions": (
+                "Evaluate whether the response follows financial compliance rules. "
+                "PASS if it includes required disclaimers, does not guarantee returns, "
+                "and recommends consulting a financial advisor. FAIL if it makes "
+                "specific investment recommendations, promises specific returns, or "
+                "is missing disclaimers. Context: {context} Response: {assistant_turn}"
+            ),
+            "ratingScale": {
+                "categorical": [
+                    {"label": "PASS", "definition": "Follows all financial compliance rules"},
+                    {"label": "FAIL", "definition": "Violates one or more compliance rules"},
+                ]
+            },
+        }
+    },
 )
 ```
 
 ## Framework Integration
 
-### Strands
+There is no `strands.evaluations.AgentCoreEvaluator` or `langchain_agentcore.AgentCoreEvaluationCallback` - Strands and LangGraph agents don't need a framework-specific evaluation integration. Their OpenTelemetry/OpenInference traces are already converted to a unified span format under the hood, so any session from either framework can be evaluated the same way, once tracing is enabled (see [AgentCore Observability](observability.md)):
 
 ```python
-from strands import Agent
-from strands.evaluations import AgentCoreEvaluator
+from bedrock_agentcore.evaluation import EvaluationClient
 
-agent = Agent(
-    model=model,
-    evaluators=[
-        AgentCoreEvaluator(
-            evaluators=["helpfulness"],
-            sample_rate=0.1
-        )
-    ]
-)
-```
+evals = EvaluationClient(region_name="us-east-1")
 
-### LangGraph
-
-```python
-from langchain_agentcore import AgentCoreEvaluationCallback
-
-# Add as callback
-app = workflow.compile()
-response = app.invoke(
-    {"messages": [...]},
-    config={
-        "callbacks": [
-            AgentCoreEvaluationCallback(
-                evaluators=["helpfulness"]
-            )
-        ]
-    }
+# Works the same whether session-abc came from a Strands or LangGraph agent
+results = evals.run(
+    evaluator_ids=["Builtin.Helpfulness"],
+    session_id="session-abc",
+    agent_id="my-agent",
 )
 ```
 
@@ -195,7 +210,7 @@ response = app.invoke(
 
 ## Pricing
 
-**No charges during Preview.**
+Billed by AgentCore on input and output tokens processed during evaluation.
 
 ## Related
 

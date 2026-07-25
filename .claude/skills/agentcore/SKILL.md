@@ -24,8 +24,11 @@ Help users build, deploy, and troubleshoot AI agents with AWS Bedrock AgentCore.
 | **Code Interpreter** | Secure Python/JS/TS execution | GA |
 | **Browser** | Isolated web interaction | GA |
 | **Observability** | OTEL-compatible tracing | GA |
-| **Evaluations** | LLM-as-a-Judge quality | Preview |
-| **Policy** | Cedar-based access control | Preview |
+| **Evaluations** | LLM-as-a-Judge quality | GA |
+| **Policy** | Cedar-based access control | GA |
+| **Harness** | Managed multi-turn agent hosting | GA |
+| **Registry** | Discover/manage agents, tools, resources | Preview |
+| **Payments** | Agent-initiated payment authorization | Preview |
 
 ### CLI Commands
 
@@ -34,9 +37,9 @@ Help users build, deploy, and troubleshoot AI agents with AWS Bedrock AgentCore.
 pip install bedrock-agentcore-starter-toolkit
 
 # Core commands
-agentcore create [--framework strands|langgraph|openai|google] [--model-provider bedrock|openai|anthropic|google]
+agentcore create [--project-name NAME] [--agent-framework Strands|LangChain_LangGraph|GoogleADK|OpenAIAgents|...] [--model-provider Bedrock|OpenAI|...]
 agentcore dev [--port 8080]              # Local development server
-agentcore deploy [--region us-east-1]    # Deploy to Runtime
+agentcore deploy [--local|--local-build] # Deploy to Runtime (region comes from AWS config)
 agentcore invoke '{"prompt": "..."}'     # Invoke agent
 agentcore status                         # Check deployment
 agentcore destroy                        # Remove agent
@@ -56,14 +59,19 @@ data = boto3.client('bedrock-agentcore', region_name='us-east-1')
 from bedrock_agentcore.runtime import BedrockAgentCoreApp
 from bedrock_agentcore.memory import MemoryClient
 from bedrock_agentcore.gateway import GatewayClient
+
+# Newer submodules (bedrock-agentcore 1.18.1)
+from bedrock_agentcore.policy import PolicyEngineClient
+from bedrock_agentcore.payments import PaymentClient, PaymentManager
+from bedrock_agentcore.knowledge_base import KnowledgeBaseClient
+from bedrock_agentcore.config_bundle import ConfigBundleClient
 ```
 
 ### Regions
 
-- `us-east-1` (N. Virginia)
-- `us-west-2` (Oregon)
-- `ap-southeast-2` (Sydney)
-- `eu-central-1` (Frankfurt)
+Commonly used: `us-east-1` (N. Virginia), `us-west-2` (Oregon), `ap-southeast-2` (Sydney), `eu-central-1` (Frankfurt).
+
+Per-feature availability varies; do not assume every region supports every service. Full, current list: [AgentCore Supported AWS Regions](https://docs.aws.amazon.com/bedrock-agentcore/latest/devguide/agentcore-regions.html).
 
 ### Pricing
 
@@ -147,7 +155,7 @@ agent = Agent(
 # AgentCore Runtime wrapper
 app = BedrockAgentCoreApp()
 
-@app.entrypoint()
+@app.entrypoint
 async def main(request):
     prompt = request.get("prompt", "")
     response = agent(prompt)
@@ -162,21 +170,26 @@ if __name__ == "__main__":
 ```python
 from bedrock_agentcore.memory import MemoryClient
 
-memory = MemoryClient(memory_id="my-memory-id")
+# The client is region-scoped; the memory resource is named per call.
+memory = MemoryClient(region_name="us-east-1")
 
-# Store interaction
+# Store interaction. messages are (text, role) TUPLES, not dicts.
 memory.create_event(
+    memory_id="my-memory-id",
+    actor_id="user-alice",
     session_id="session-123",
     messages=[
-        {"role": "user", "content": "My name is Alice"},
-        {"role": "assistant", "content": "Hello Alice!"}
-    ]
+        ("My name is Alice", "USER"),
+        ("Hello Alice!", "ASSISTANT"),
+    ],
 )
 
-# Retrieve relevant memories
+# Retrieve relevant memories (there is no session_id arg; namespace is optional)
 memories = memory.retrieve_memories(
-    session_id="session-123",
-    query="What is my name?"
+    memory_id="my-memory-id",
+    namespace="/facts/user-alice",
+    query="What is my name?",
+    top_k=3,
 )
 ```
 
@@ -185,33 +198,49 @@ memories = memory.retrieve_memories(
 ```python
 from bedrock_agentcore.gateway import GatewayClient
 
-gateway = GatewayClient(gateway_id="my-gateway-id")
+# The client is region-scoped; gateways are addressed per call.
+gateway = GatewayClient(region_name="us-east-1")
 
-# List available tools
-tools = gateway.list_tools()
-
-# Call a tool
-result = gateway.call_tool(
-    tool_name="get_weather",
-    arguments={"city": "Seattle"}
+# Create a gateway and attach targets. The *_and_wait helpers block until the
+# resource reaches a terminal state. create_gateway_and_wait passes its
+# arguments through as **kwargs to the underlying control-plane call.
+# CreateGateway requires name, roleArn and authorizerType together.
+gw = gateway.create_gateway_and_wait(
+    name="my-gateway",
+    roleArn="arn:aws:iam::123456789012:role/AgentCoreGatewayRole",
+    authorizerType="CUSTOM_JWT",
+    authorizerConfiguration={
+        "customJWTAuthorizer": {
+            "discoveryUrl": "https://your-idp/.well-known/openid-configuration",
+            "allowedClients": ["your-client-id"],
+        }
+    },
 )
+target = gateway.create_knowledge_base_target(
+    gateway_identifier=gw["gatewayId"],
+    knowledge_base_id="my-kb-id",
+    name="docs-kb",
+)
+
+# Gateways expose their targets to agents over MCP; the client manages the
+# gateway, it does not proxy individual tool calls.
 ```
 
 ### Deployment Workflow
 
 ```bash
 # 1. Create project
-agentcore create --framework strands --model-provider bedrock --name my-agent
+agentcore create --project-name myagent --agent-framework Strands --model-provider Bedrock
 
 # 2. Develop locally
-cd my-agent
+cd myagent
 agentcore dev
 
 # 3. Test locally
 agentcore invoke --dev '{"prompt": "Hello!"}'
 
-# 4. Deploy to AWS
-agentcore deploy --region us-east-1
+# 4. Deploy to AWS (region comes from your AWS config/AWS_REGION)
+agentcore deploy
 
 # 5. Invoke in production
 agentcore invoke '{"prompt": "Hello!"}'
@@ -415,16 +444,17 @@ Before declaring a long-running agent "production ready":
 
 ```bash
 # Check agent status
-agentcore status --name my-agent
+agentcore status --agent myagent
 
-# View CloudWatch logs
-aws logs tail /aws/bedrock-agentcore/runtimes/<agent_id> --follow
+# View CloudWatch logs (log group includes the endpoint name)
+aws logs tail /aws/bedrock-agentcore/runtimes/<agent_id>-<endpoint_name> --follow
 
-# Test locally with verbose logging
-AGENTCORE_LOG_LEVEL=DEBUG agentcore dev
+# Local dev server logs stream to the terminal directly
+# (there is no AGENTCORE_LOG_LEVEL env var; `agentcore dev` has no debug/verbose flag)
+agentcore dev
 
-# Invoke with debug output
-agentcore invoke --debug '{"prompt": "test"}'
+# Invoke (there is no --debug flag)
+agentcore invoke '{"prompt": "test"}'
 ```
 
 ---
@@ -433,23 +463,27 @@ agentcore invoke --debug '{"prompt": "test"}'
 
 ### Runtime Limits
 
+Verified against the AgentCore Runtime quota tables (2026-07-25).
+
 | Resource | Limit |
 |----------|-------|
-| Max execution time | 8 hours |
+| Synchronous request timeout | 15 min (not adjustable) |
+| Idle session timeout | 15 min of inactivity (adjustable — see Session lifecycle knobs above) |
+| Max session duration | 8 hrs (adjustable — see Session lifecycle knobs above) |
+| Max async job duration | 8 hrs (not adjustable) |
 | Max payload size | 100 MB |
-| Min memory | 128 MB |
-| Max memory | 10,240 MB |
-| Concurrent sessions | 1000 per endpoint |
+| Hardware per session | 2 vCPU / 8 GB (not adjustable; there is no separate "per-agent" memory quota) |
+| Active session workloads per account | 5,000 in us-east-1 & us-west-2; 2,500 elsewhere (adjustable via Service Quotas) |
 
 ### Supported Frameworks
 
 - **Strands** - AWS native, simplest path
 - **LangGraph** - LangChain ecosystem
 - **CrewAI** - Multi-agent collaboration
-- **LlamaIndex** - RAG-focused
+- **AutoGen** - Multi-agent conversations
 - **Google ADK** - Google's framework
 - **OpenAI Agents SDK** - OpenAI's framework
-- **Custom** - Any Python agent
+- **Custom** - Any Python agent (values above match `agentcore create --agent-framework`; anything else brings your own runtime code)
 
 ### Supported Models
 
@@ -463,6 +497,7 @@ agentcore invoke --debug '{"prompt": "test"}'
 
 - **MCP** (Model Context Protocol) - Tool connectivity
 - **A2A** (Agent to Agent) - Inter-agent communication
+- **AG-UI** - Agent-to-frontend UI streaming (`AGUIApp`, `build_ag_ui_app`, `serve_ag_ui` in `bedrock_agentcore.runtime`)
 
 ---
 

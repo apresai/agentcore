@@ -20,18 +20,12 @@ Expected output:
     ✓ Memory working successfully!
 """
 
-import os
 import time
 import random
 
-# Optional: load environment variables from .env file
-try:
-    from dotenv import load_dotenv
-    load_dotenv()
-except ImportError:
-    pass
-
 import boto3
+
+from config import AWS_REGION, EVENT_EXPIRY_DAYS
 
 # Marvin's existential observations - worth remembering (he'd disagree)
 MARVIN_QUOTES = [
@@ -57,11 +51,9 @@ def main():
     print("  AgentCore Memory gives your agents the same gift (or curse).")
     print()
 
-    region = os.getenv("AWS_REGION", "us-east-1")
-
     # Initialize clients
-    control_client = boto3.client('bedrock-agentcore-control', region_name=region)
-    data_client = boto3.client('bedrock-agentcore', region_name=region)
+    control_client = boto3.client('bedrock-agentcore-control', region_name=AWS_REGION)
+    data_client = boto3.client('bedrock-agentcore', region_name=AWS_REGION)
     print("✓ AgentCore clients initialized")
 
     # Create a unique memory name (alphanumeric + underscore only, must start with letter)
@@ -75,7 +67,7 @@ def main():
         create_response = control_client.create_memory(
             name=memory_name,
             description="Marvin's memory bank - remembering so you don't have to",
-            eventExpiryDuration=3,  # 3 days TTL for short-term (min 3, max 365 days)
+            eventExpiryDuration=EVENT_EXPIRY_DAYS,  # TTL for short-term memory (min 3, max 365 days)
             memoryStrategies=[
                 {
                     'userPreferenceMemoryStrategy': {
@@ -202,7 +194,7 @@ def main():
                     try:
                         status_response = control_client.get_memory(memoryId=memory_id)
                         status = status_response['memory']['status']
-                        if status in ('DELETED', 'FAILED'):
+                        if status == 'FAILED':
                             break
                         if i % 10 == 0:
                             print(f"  Waiting for deletion (status: {status})...")
@@ -214,7 +206,7 @@ def main():
                 print("✓ Memory deleted successfully")
             except Exception as cleanup_error:
                 print(f"  ⚠ Cleanup failed: {cleanup_error}")
-                print(f"  Manual cleanup: aws bedrock-agentcore-control delete-memory --memory-id {memory_id} --region {region}")
+                print(f"  Manual cleanup: aws bedrock-agentcore-control delete-memory --memory-id {memory_id} --region {AWS_REGION}")
 
 
 if __name__ == "__main__":

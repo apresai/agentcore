@@ -86,12 +86,16 @@ Each session provides two WebSocket endpoints:
 ### Playwright Integration
 
 ```python
+import asyncio
 from playwright.async_api import async_playwright
 
-async with async_playwright() as p:
-    browser = await p.chromium.connect_over_cdp(automation_url)
-    page = browser.contexts[0].pages[0]
-    await page.goto('https://example.com')
+async def browse(automation_url: str):
+    async with async_playwright() as p:
+        browser = await p.chromium.connect_over_cdp(automation_url)
+        page = browser.contexts[0].pages[0]
+        await page.goto("https://example.com")
+
+asyncio.run(browse(automation_url))
 ```
 
 ### Session Recording
@@ -101,7 +105,7 @@ Create a custom browser for recording:
 aws bedrock-agentcore-control create-browser \
     --name "recording-browser" \
     --network-configuration '{"networkMode": "PUBLIC"}' \
-    --recording '{"enabled": true, "s3Location": {"bucket": "my-bucket"}}'
+    --recording '{"enabled": true, "s3Location": {"bucket": "my-bucket", "prefix": "browser-sessions/"}}'
 ```
 
 ## Learn More

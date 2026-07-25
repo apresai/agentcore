@@ -16,7 +16,7 @@ AgentCore Policy provides **deterministic access control** using Cedar, AWS's op
 ## Environment Setup
 
 ```bash
-pip install boto3 python-dotenv
+pip install boto3
 export AWS_REGION=us-east-1
 ```
 
@@ -100,22 +100,34 @@ print("✓ Policy created: absolute ceiling ($10,000)")
 ### Attach Policy Engine to Gateway
 
 ```python
-# Attach to your existing gateway — start with LOG_ONLY to test
+# Attach to your existing gateway — start with LOG_ONLY to test.
+# UpdateGateway is not a sparse patch: name, roleArn and authorizerType are
+# required on every call, so read the current configuration back first.
+gw = control.get_gateway(gatewayIdentifier='gw-abc123')
+kwargs = {'gatewayIdentifier': 'gw-abc123', 'name': gw['name'],
+          'roleArn': gw['roleArn'], 'authorizerType': gw['authorizerType']}
+if gw.get('authorizerConfiguration'):
+    kwargs['authorizerConfiguration'] = gw['authorizerConfiguration']
 control.update_gateway(
-    gatewayIdentifier='gw-abc123',
+    **kwargs,
     policyEngineConfiguration={
-        'policyEngineArn': engine['policyEngineArn'],
-        'enforcementMode': 'LOG_ONLY'  # Test first, then switch to ENFORCE
+        'arn': engine['policyEngineArn'],
+        'mode': 'LOG_ONLY'  # Test first, then switch to ENFORCE
     }
 )
 print("✓ Policy engine attached to gateway (LOG_ONLY mode)")
 
-# After validating decisions in CloudWatch, switch to enforcement:
+# After validating decisions in CloudWatch, switch to enforcement.
+# Re-read the gateway first, exactly as above, and carry
+# authorizerConfiguration through when the gateway has one:
 # control.update_gateway(
 #     gatewayIdentifier='gw-abc123',
+#     name=gw['name'], roleArn=gw['roleArn'], authorizerType=gw['authorizerType'],
+#     **({'authorizerConfiguration': gw['authorizerConfiguration']}
+#        if gw.get('authorizerConfiguration') else {}),
 #     policyEngineConfiguration={
-#         'policyEngineArn': engine['policyEngineArn'],
-#         'enforcementMode': 'ENFORCE'
+#         'arn': engine['policyEngineArn'],
+#         'mode': 'ENFORCE'
 #     }
 # )
 ```
@@ -127,21 +139,22 @@ print("✓ Policy engine attached to gateway (LOG_ONLY mode)")
 response = control.start_policy_generation(
     policyEngineId=engine_id,
     name='NLGeneratedPolicy',
-    content={'text': 'Only finance department users can void payments'},
-    resource={'gateway': {
-        'gatewayArn': 'arn:aws:bedrock-agentcore:us-east-1:123456789012:gateway/gw-abc123'
-    }}
+    content={'rawText': 'Only finance department users can void payments'},
+    resource={'arn': 'arn:aws:bedrock-agentcore:us-east-1:123456789012:gateway/gw-abc123'}
 )
 
-# Poll for generated Cedar
+# Poll until generation finishes, then fetch the generated assets
 generation_id = response['policyGenerationId']
 while True:
     result = control.get_policy_generation(
         policyEngineId=engine_id, policyGenerationId=generation_id
     )
     if result['status'] == 'GENERATED':
+        assets = control.list_policy_generation_assets(
+            policyEngineId=engine_id, policyGenerationId=generation_id
+        )
         print("Generated Cedar policy:")
-        print(result['generatedPolicies'][0]['statement'])
+        print(assets['policyGenerationAssets'][0]['definition']['cedar']['statement'])
         break
     time.sleep(3)
 ```

@@ -4,5 +4,8 @@
 # Core AgentCore SDK
 bedrock-agentcore>=1.0.0
 
+# CLI for agentcore dev / deploy / invoke
+bedrock-agentcore-starter-toolkit>=0.3.0
+
 # Agent framework (Strands is the recommended starting point)
 strands-agents>=0.1.0

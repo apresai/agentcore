@@ -17,7 +17,7 @@ AgentCore Memory solves this with two memory types working together: **short-ter
 
 ```bash
 # Install dependencies
-pip install boto3 python-dotenv
+pip install boto3
 
 # Set environment variables
 export AWS_REGION=us-east-1
@@ -79,7 +79,7 @@ records = data.retrieve_memory_records(
     searchCriteria={'searchQuery': "travel preferences", 'topK': 5}
 )
 
-for record in records.get('memoryRecords', []):
+for record in records.get('memoryRecordSummaries', []):
     print(f"Remembered: {record['content']['text']}")
 ```
 

@@ -10,7 +10,7 @@ Most teams spend weeks on infrastructure before their agent handles a single req
 
 - AWS account with Bedrock AgentCore access
 - Python 3.10+ installed
-- Required packages: `bedrock-agentcore`, `strands-agents`
+- Required packages: `bedrock-agentcore`, `bedrock-agentcore-starter-toolkit`, `strands-agents`
 
 ## Quick Start
 
@@ -35,14 +35,14 @@ if __name__ == "__main__":
 
 ```bash
 # Install dependencies
-pip install bedrock-agentcore strands-agents
+pip install bedrock-agentcore bedrock-agentcore-starter-toolkit strands-agents
 
 # Test locally
 python main.py
 
 # Deploy to AWS (3 commands!)
 agentcore configure -e main.py
-agentcore launch
+agentcore deploy
 agentcore invoke '{"prompt": "Hello, AgentCore!"}'
 ```
 
@@ -56,7 +56,7 @@ Expected output:
 
 **Key benefit**: I/O wait is free—you're not charged while your agent waits for LLM responses. Plus, agents can run up to 8 hours for complex, long-running tasks. Deep Thought would have killed for that billing model — imagine 7.5 million years of I/O wait charges.
 
-Ready to go further? Add Memory for context, Gateway for tools, and Identity for auth—all with the same SDK. The answer to Life, the Universe, and Everything may be 42 — but the answer to production AI infrastructure is `agentcore launch`.
+Ready to go further? Add Memory for context, Gateway for tools, and Identity for auth—all with the same SDK. The answer to Life, the Universe, and Everything may be 42 — but the answer to production AI infrastructure is `agentcore deploy`.
 
 📚 Docs: https://docs.aws.amazon.com/bedrock-agentcore/latest/devguide/
 💻 Code: `articles/examples/runtime/` | [View complete example on GitHub](https://github.com/apresai/agentcore/tree/main/articles/examples/runtime/)

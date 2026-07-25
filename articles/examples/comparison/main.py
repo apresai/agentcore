@@ -33,14 +33,7 @@ Expected output:
     Both frameworks deploy to AgentCore Runtime the same way!
 """
 
-import os
-
-# Optional: load environment variables from .env file
-try:
-    from dotenv import load_dotenv
-    load_dotenv()
-except ImportError:
-    pass
+from config import AWS_REGION, MODEL_ID
 
 
 def strands_agent_example(prompt: str) -> str:
@@ -54,8 +47,8 @@ def strands_agent_example(prompt: str) -> str:
     # Strands provides clean, minimal API
     agent = Agent(
         model=BedrockModel(
-            model_id="us.anthropic.claude-haiku-4-5-20251001-v1:0",
-            region_name=os.getenv("AWS_REGION", "us-east-1")
+            model_id=MODEL_ID,
+            region_name=AWS_REGION
         ),
         system_prompt="You are a helpful assistant. Keep responses brief (1-2 sentences)."
     )
@@ -82,8 +75,8 @@ def langgraph_agent_example(prompt: str) -> str:
 
     # Initialize Bedrock model through LangChain
     llm = ChatBedrock(
-        model_id="us.anthropic.claude-haiku-4-5-20251001-v1:0",
-        region_name=os.getenv("AWS_REGION", "us-east-1"),
+        model_id=MODEL_ID,
+        region_name=AWS_REGION,
         model_kwargs={"max_tokens": 256}
     )
 
@@ -211,9 +204,9 @@ AgentCore - Guide Entry: "A hoopy frood who really knows where his towel is."
   2. Package code (zip or container)
   3. Deploy to AgentCore Runtime:
 
-     agentcore create my-agent
-     agentcore deploy my-agent
-     agentcore invoke my-agent "Hello!"
+     agentcore create --project-name myagent
+     agentcore deploy
+     agentcore invoke '{"prompt": "Hello!"}'
 
   4. Add Gateway tools, Memory, Identity as needed
 

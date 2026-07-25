@@ -34,52 +34,77 @@ Outbound (Agent → Tool):
 
 ## Quick Start
 
+`IdentityClient` isn't exported from `bedrock_agentcore.identity` directly - it lives in `bedrock_agentcore.identity.auth`, and its constructor takes a positional `region`. It has no `configure_authorizer()` or `store_credential()` method; its real surface is workload identity and credential-provider management (`create_workload_identity`, `create_oauth2_credential_provider`, `create_api_key_credential_provider`, `get_token`, `get_api_key`, and the payments-credential-provider family).
+
 ### Configure Inbound Authentication
 
+Inbound JWT verification is configured on the *Gateway* (or Runtime), not through a standalone Identity call - it's the `authorizerConfiguration.customJWTAuthorizer` block passed to `create_gateway`:
+
 ```python
-from bedrock_agentcore.identity import IdentityClient
+from bedrock_agentcore.gateway import GatewayClient
 
-identity = IdentityClient()
+gateway = GatewayClient(region_name="us-east-1")
 
-# Configure JWT authorizer
-identity.configure_authorizer(
-    agent_id="my-agent",
-    authorizer_type="jwt",
-    config={
-        "issuer": "https://cognito-idp.us-east-1.amazonaws.com/us-east-1_xxxxx",
-        "audience": "my-client-id"
-    }
+gw = gateway.create_gateway_and_wait(
+    name="MyGateway",
+    roleArn="arn:aws:iam::123456789012:role/GatewayRole",
+    authorizerType="CUSTOM_JWT",
+    authorizerConfiguration={
+        "customJWTAuthorizer": {
+            "discoveryUrl": "https://cognito-idp.us-east-1.amazonaws.com/us-east-1_xxxxx/.well-known/openid-configuration",
+            "allowedAudience": ["my-client-id"],
+            "allowedClients": ["my-client-id"],
+        }
+    },
+    protocolType="MCP",
 )
 ```
 
 ### Store Outbound Credentials
 
+Outbound credentials go through a dedicated `create_oauth2_credential_provider`/`create_api_key_credential_provider` call - there is no generic `store_credential()`:
+
 ```python
-# Store OAuth credentials for external service
-identity.store_credential(
-    agent_id="my-agent",
-    credential_name="salesforce",
-    credential_type="oauth2",
-    config={
-        "client_id": "...",
-        "client_secret_arn": "arn:aws:secretsmanager:...",
-        "token_url": "https://login.salesforce.com/services/oauth2/token"
-    }
-)
+from bedrock_agentcore.identity.auth import IdentityClient
+
+identity = IdentityClient(region="us-east-1")
+
+provider = identity.create_oauth2_credential_provider({
+    "name": "SalesforceProvider",
+    "credentialProviderVendor": "SalesforceOauth2",
+    "oauth2ProviderConfigInput": {
+        "salesforceOauth2ProviderConfig": {
+            "clientId": "your-client-id",
+            "clientSecret": "your-client-secret",
+        }
+    },
+})
+
+provider_arn = provider["credentialProviderArn"]
 ```
 
 ### Use Credentials in Agent
 
-```python
-# Credentials are automatically injected when calling tools
-# No need to handle tokens in your code
+Tool functions pull the token in automatically via the `requires_access_token` decorator - there's no `gateway.invoke_tool()` method (Gateway has no data-plane boto3 API; agents call tools over MCP - see [AgentCore Gateway](gateway.md)):
 
-# Via Gateway
-gateway.invoke_tool(
-    tool_name="salesforce_get_account",
-    input={"account_id": "123"}
+```python
+from bedrock_agentcore.identity import requires_access_token
+
+@requires_access_token(
+    provider_name="salesforce",
+    scopes=["api"],
+    auth_flow="USER_FEDERATION",
+    on_auth_url=lambda url: print(f"Authorize this agent: {url}"),
 )
-# Identity automatically provides OAuth token
+def get_salesforce_account(account_id: str, *, access_token: str) -> dict:
+    """access_token is injected by the decorator before the body runs."""
+    import requests
+    response = requests.get(
+        "https://your-instance.salesforce.com/services/data/v59.0/query",
+        headers={"Authorization": f"Bearer {access_token}"},
+        params={"q": f"SELECT Id FROM Account WHERE Id = '{account_id}'"},
+    )
+    return response.json()
 ```
 
 ## Key Features

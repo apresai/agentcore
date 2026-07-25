@@ -16,7 +16,7 @@ Your first AI agent deployed to AWS in 5 minutes.
 - Python 3.10+
 - AWS account with Bedrock AgentCore access enabled
 - AWS credentials configured (`aws configure`)
-- Region: us-east-1, us-west-2, ap-southeast-2, or eu-central-1
+- A [supported AWS region](https://docs.aws.amazon.com/bedrock-agentcore/latest/devguide/agentcore-regions.html) (commonly used: us-east-1, us-west-2, eu-central-1)
 
 ## Quick Setup
 
@@ -36,14 +36,14 @@ pip install -r requirements.txt
 agentcore dev
 
 # In another terminal, test your agent
-agentcore invoke --dev "What is AgentCore?"
+agentcore invoke '{"prompt": "What is AgentCore?"}' --dev
 ```
 
 ## Deploy to AWS
 
 ```bash
 # Deploy to AgentCore Runtime (builds in AWS CodeBuild - no Docker needed)
-agentcore launch
+agentcore deploy
 
 # Invoke your deployed agent
 agentcore invoke '{"prompt": "Hello from the cloud!"}'
@@ -77,12 +77,12 @@ After deploying your first agent:
 
 1. **Add Memory** for conversation context:
    ```bash
-   agentcore memory create my-memory
+   agentcore memory create my_memory
    ```
 
 2. **Connect Tools** via Gateway:
    ```bash
-   agentcore gateway create-mcp-gateway --name my-gateway
+   agentcore gateway create-mcp-gateway --name mygateway
    ```
 
 3. **View Logs** in CloudWatch:
@@ -93,11 +93,12 @@ After deploying your first agent:
 ```
 quickstart/
 ├── main.py           # Agent code with @app.entrypoint
+├── config.py         # Region/model settings (env-overridable)
 ├── requirements.txt  # Python dependencies
 └── README.md         # This file
 ```
 
-When you run `agentcore launch`, the toolkit:
+When you run `agentcore deploy`, the toolkit:
 1. Creates a `.bedrock_agentcore.yaml` config file
 2. Builds a container via AWS CodeBuild (ARM64 for Graviton)
 3. Pushes to ECR
