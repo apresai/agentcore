@@ -734,8 +734,14 @@ def chat_with_memory(user_id: str, session_id: str, message: str) -> str:
         k=10,
     )
 
-    # Get agent response using the retrieved history as context
-    response = agent(turns)
+    # get_last_k_turns returns List[List[Dict]] (a list of turns, each a list
+    # of message dicts), which is not a Strands Messages list. Flatten it into
+    # transcript text and hand that to the agent along with the new message.
+    history = "\n".join(
+        f"{m.get('role','')}: {m.get('content',{}).get('text','')}"
+        for turn in turns for m in turn
+    )
+    response = agent(f"Conversation so far:\n{history}\n\nUser: {message}")
 
     # Store the exchange - messages are (text, role) tuples
     memory_client.create_event(
@@ -801,11 +807,10 @@ def personalized_chat(user_id: str, session_id: str, message: str) -> str:
 
 Use this context to provide personalized responses."""
 
-    # Generate response
-    response = agent(
-        messages=[{"role": "user", "content": message}],
-        system_prompt=system_prompt
-    )
+    # Agent.__call__ takes a positional prompt; the system prompt is a
+    # property of the Agent, not a per-call keyword.
+    agent.system_prompt = system_prompt
+    response = agent(message)
 
     # Store interaction for future extraction
     memory_client.create_event(

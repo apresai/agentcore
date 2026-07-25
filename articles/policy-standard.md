@@ -104,11 +104,12 @@ print("✓ Policy created: absolute ceiling ($10,000)")
 # UpdateGateway is not a sparse patch: name, roleArn and authorizerType are
 # required on every call, so read the current configuration back first.
 gw = control.get_gateway(gatewayIdentifier='gw-abc123')
+kwargs = {'gatewayIdentifier': 'gw-abc123', 'name': gw['name'],
+          'roleArn': gw['roleArn'], 'authorizerType': gw['authorizerType']}
+if gw.get('authorizerConfiguration'):
+    kwargs['authorizerConfiguration'] = gw['authorizerConfiguration']
 control.update_gateway(
-    gatewayIdentifier='gw-abc123',
-    name=gw['name'],
-    roleArn=gw['roleArn'],
-    authorizerType=gw['authorizerType'],
+    **kwargs,
     policyEngineConfiguration={
         'arn': engine['policyEngineArn'],
         'mode': 'LOG_ONLY'  # Test first, then switch to ENFORCE

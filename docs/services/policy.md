@@ -2,7 +2,7 @@
 
 > Cedar-based deterministic access control for AI agents
 
-**Status: Preview** (No charges during preview)
+**Status: GA** (No charges during preview)
 
 ## Overview
 
@@ -293,7 +293,7 @@ for event in response['events']:
 
 ## Pricing
 
-**No charges during Preview.**
+Billed per one million user input tokens processed for authorization requests during agent execution.
 
 ## Related
 

@@ -415,11 +415,12 @@ Gateway integrates with [AgentCore Policy](policy.md) by attaching a policy engi
 # UpdateGateway is not a sparse patch: name, roleArn and authorizerType are
 # required on every call, so read the current configuration back first.
 gw = control_client.get_gateway(gatewayIdentifier=gateway_id)
+kwargs = {"gatewayIdentifier": gateway_id, "name": gw["name"],
+          "roleArn": gw["roleArn"], "authorizerType": gw["authorizerType"]}
+if gw.get("authorizerConfiguration"):
+    kwargs["authorizerConfiguration"] = gw["authorizerConfiguration"]
 control_client.update_gateway(
-    gatewayIdentifier=gateway_id,
-    name=gw["name"],
-    roleArn=gw["roleArn"],
-    authorizerType=gw["authorizerType"],
+    **kwargs,
     policyEngineConfiguration={"arn": policy_engine_arn, "mode": "ENFORCE"},
 )
 

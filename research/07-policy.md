@@ -476,16 +476,21 @@ The field is `gatewayIdentifier` (not `gatewayId`), and `policyEngineConfigurati
 # required on every call, so read the current configuration back first.
 gw = client.get_gateway(gatewayIdentifier='gw-abc123')
 
-response = client.update_gateway(
-    gatewayIdentifier='gw-abc123',
-    name=gw['name'],
-    roleArn=gw['roleArn'],
-    authorizerType=gw['authorizerType'],
-    policyEngineConfiguration={
+kwargs = {
+    'gatewayIdentifier': 'gw-abc123',
+    'name': gw['name'],
+    'roleArn': gw['roleArn'],
+    'authorizerType': gw['authorizerType'],
+    'policyEngineConfiguration': {
         'arn': 'arn:aws:bedrock-agentcore:us-east-1:123456789012:policy-engine/pe-abc123xyz',
         'mode': 'ENFORCE'  # or 'LOG_ONLY'
-    }
-)
+    },
+}
+# botocore rejects an explicit None here, so only include it when it exists
+if gw.get('authorizerConfiguration'):
+    kwargs['authorizerConfiguration'] = gw['authorizerConfiguration']
+
+response = client.update_gateway(**kwargs)
 ```
 
 ---
@@ -1431,16 +1436,17 @@ def switch_enforcement_mode(gateway_id: str, engine_arn: str, mode: str):
 
     # UpdateGateway requires name, roleArn and authorizerType on every call.
     gw = client.get_gateway(gatewayIdentifier=gateway_id)
-    response = client.update_gateway(
-        gatewayIdentifier=gateway_id,
-        name=gw['name'],
-        roleArn=gw['roleArn'],
-        authorizerType=gw['authorizerType'],
-        policyEngineConfiguration={
-            'arn': engine_arn,
-            'mode': mode
-        }
-    )
+    kwargs = {
+        'gatewayIdentifier': gateway_id,
+        'name': gw['name'],
+        'roleArn': gw['roleArn'],
+        'authorizerType': gw['authorizerType'],
+        'policyEngineConfiguration': {'arn': engine_arn, 'mode': mode},
+    }
+    if gw.get('authorizerConfiguration'):
+        kwargs['authorizerConfiguration'] = gw['authorizerConfiguration']
+
+    response = client.update_gateway(**kwargs)
 
     print(f"Gateway updated to {mode} mode")
     return response

@@ -2,7 +2,7 @@
 
 > Automated quality assessment using LLM-as-a-Judge
 
-**Status: Preview** (No charges during preview)
+**Status: GA** (generally available 2026-03-31)
 
 ## Overview
 
@@ -210,7 +210,7 @@ results = evals.run(
 
 ## Pricing
 
-**No charges during Preview.**
+Billed by AgentCore on input and output tokens processed during evaluation.
 
 ## Related
 

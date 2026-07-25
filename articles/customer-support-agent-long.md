@@ -322,7 +322,7 @@ agentcore deploy
 agentcore invoke '{"customer_id": "CUST-123", "session_id": "sess-001", "prompt": "I need help with my order ORD-456"}'
 
 # Expected output:
-# ✓ Agent deployed: customer-support-agent
+# ✓ Agent deployed: customersupportagent
 # ✓ Response: "Let me look up your order and check our records..."
 ```
 

@@ -33,7 +33,7 @@ AgentCore provides nine modular services that work independently or together.
 │                                   │                                 │
 │ OTEL-compatible tracing with      │ LLM-as-a-Judge quality          │
 │ CloudWatch dashboards and         │ assessment with custom          │
-│ step-by-step visualization        │ evaluators (GA)                    │
+│ step-by-step visualization        │ evaluators (GA)            │
 └───────────────────────────────────┴─────────────────────────────────┘
 
 ┌─────────────────────────────────────────────────────────────────────┐
@@ -42,7 +42,7 @@ AgentCore provides nine modular services that work independently or together.
 │                            Policy                                   │
 │                                                                     │
 │ Cedar-based deterministic access control with natural language      │
-│ policy authoring (GA)                                               │
+│ policy authoring (GA)                                          │
 └─────────────────────────────────────────────────────────────────────┘
 ```
 
@@ -214,7 +214,7 @@ Every user session runs in a dedicated microVM with isolated CPU, memory, and fi
 | Built-in | Pre-configured evaluators |
 | Custom | User-defined criteria |
 
-**No charges during Preview.**
+**Billed per token processed.**
 
 [Learn more →](evaluations.md)
 
@@ -230,7 +230,7 @@ Every user session runs in a dedicated microVM with isolated CPU, memory, and fi
 - Gateway integration for request interception
 - CloudWatch logging for audit
 
-**No charges during Preview.**
+**Billed per token processed.**
 
 [Learn more →](policy.md)
 

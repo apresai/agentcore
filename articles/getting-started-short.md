@@ -21,7 +21,7 @@ pip install bedrock-agentcore bedrock-agentcore-starter-toolkit strands-agents
 agentcore create --project-name myfirstagent
 
 # 3. Deploy to AWS
-cd my-first-agent
+cd myfirstagent
 agentcore deploy
 
 # 4. Talk to your agent

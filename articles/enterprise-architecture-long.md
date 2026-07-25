@@ -1020,11 +1020,12 @@ POLICY_ENGINE_ARN = engine["policyEngineArn"]
 # Attach policy engine to the enterprise gateway
 # UpdateGateway requires name, roleArn and authorizerType on every call.
 gw = control.get_gateway(gatewayIdentifier=GATEWAY_ID)
+kwargs = {"gatewayIdentifier": GATEWAY_ID, "name": gw["name"],
+          "roleArn": gw["roleArn"], "authorizerType": gw["authorizerType"]}
+if gw.get("authorizerConfiguration"):
+    kwargs["authorizerConfiguration"] = gw["authorizerConfiguration"]
 control.update_gateway(
-    gatewayIdentifier=GATEWAY_ID,
-    name=gw["name"],
-    roleArn=gw["roleArn"],
-    authorizerType=gw["authorizerType"],
+    **kwargs,
     policyEngineConfiguration={
         "arn": POLICY_ENGINE_ARN,
         "mode": "ENFORCE",
@@ -1988,11 +1989,12 @@ def test_policy_rollout(gateway_id: str, engine_arn: str, test_cases: list, bear
     print("Switching to LOG_ONLY mode...")
     # UpdateGateway requires name, roleArn and authorizerType on every call.
     gw = control.get_gateway(gatewayIdentifier=gateway_id)
+    kwargs = {"gatewayIdentifier": gateway_id, "name": gw["name"],
+              "roleArn": gw["roleArn"], "authorizerType": gw["authorizerType"]}
+    if gw.get("authorizerConfiguration"):
+        kwargs["authorizerConfiguration"] = gw["authorizerConfiguration"]
     control.update_gateway(
-        gatewayIdentifier=gateway_id,
-        name=gw["name"],
-        roleArn=gw["roleArn"],
-        authorizerType=gw["authorizerType"],
+        **kwargs,
         policyEngineConfiguration={
             "arn": engine_arn,
             "mode": "LOG_ONLY",
@@ -2026,11 +2028,12 @@ def test_policy_rollout(gateway_id: str, engine_arn: str, test_cases: list, bear
         print(f"\nAll {len(results)} tests passed. Switching to ENFORCE mode...")
         # UpdateGateway requires name, roleArn and authorizerType on every call.
         gw = control.get_gateway(gatewayIdentifier=gateway_id)
+        kwargs = {"gatewayIdentifier": gateway_id, "name": gw["name"],
+                  "roleArn": gw["roleArn"], "authorizerType": gw["authorizerType"]}
+        if gw.get("authorizerConfiguration"):
+            kwargs["authorizerConfiguration"] = gw["authorizerConfiguration"]
         control.update_gateway(
-            gatewayIdentifier=gateway_id,
-            name=gw["name"],
-            roleArn=gw["roleArn"],
-            authorizerType=gw["authorizerType"],
+            **kwargs,
             policyEngineConfiguration={
                 "arn": engine_arn,
                 "mode": "ENFORCE",

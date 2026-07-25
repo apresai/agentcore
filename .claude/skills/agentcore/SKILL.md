@@ -233,7 +233,7 @@ target = gateway.create_knowledge_base_target(
 agentcore create --project-name myagent --agent-framework Strands --model-provider Bedrock
 
 # 2. Develop locally
-cd my-agent
+cd myagent
 agentcore dev
 
 # 3. Test locally

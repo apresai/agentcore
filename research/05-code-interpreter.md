@@ -861,7 +861,7 @@ Deploy to AgentCore Runtime:
 # STM_ONLY/STM_AND_LTM/NO_MEMORY, not a byte size.
 agentcore create --project-name dataanalystagent --agent-framework Strands --model-provider Bedrock
 
-cd data-analyst-agent
+cd dataanalystagent
 agentcore deploy --agent dataanalystagent
 ```
 
