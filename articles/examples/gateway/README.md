@@ -97,12 +97,13 @@ Gateway exposes tools via Model Context Protocol (MCP):
 To add tools to your Gateway, use the AgentCore CLI:
 
 ```bash
-# Add a Lambda function as a tool
+# Add a Lambda function as a tool (omit --target-payload to auto-create a demo Lambda)
 agentcore gateway create-mcp-gateway-target \
-    --gateway-id <your-gateway-id> \
+    --gateway-arn <your-gateway-arn> \
+    --gateway-url <your-gateway-url> \
+    --role-arn <your-gateway-role-arn> \
     --name MyCalculator \
-    --type lambda \
-    --lambda-arn arn:aws:lambda:us-east-1:123456789012:function:Calculator
+    --target-type lambda
 ```
 
 ## Learn More

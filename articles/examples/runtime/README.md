@@ -16,7 +16,7 @@ Runnable example demonstrating how to deploy an AI agent to AWS Bedrock AgentCor
 - Python 3.10+
 - AWS account with Bedrock AgentCore access enabled
 - AWS credentials configured (`aws configure`)
-- Region: us-east-1, us-west-2, ap-southeast-2, or eu-central-1
+- A [supported AWS region](https://docs.aws.amazon.com/bedrock-agentcore/latest/devguide/agentcore-regions.html) (commonly used: us-east-1, us-west-2, eu-central-1)
 
 ## Setup
 
@@ -36,7 +36,7 @@ aws configure
 
 ```bash
 # Run the example locally
-python main.py
+python main.py --demo
 ```
 
 ## Expected Output
@@ -59,14 +59,14 @@ AgentCore Runtime - Agent Deployment Example
 
 [Step 4] Deploy to AgentCore Runtime:
   --------------------------------------------------
-  # Initialize AgentCore project
-  agentcore init
+  # Configure the agent
+  agentcore configure -e main.py -n runtime_demo -dt direct_code_deploy -ni
 
   # Deploy to AWS
   agentcore deploy
 
   # Invoke your deployed agent
-  agentcore invoke "Hello, AgentCore!"
+  agentcore invoke '{"prompt": "Hello, AgentCore!"}'
   --------------------------------------------------
 
 ✓ Ready for deployment!
@@ -85,14 +85,14 @@ Key benefits of AgentCore Runtime:
 After running `main.py` locally, deploy to AgentCore:
 
 ```bash
-# Initialize AgentCore project
-agentcore init
+# Configure the agent
+agentcore configure -e main.py -n runtime_demo -dt direct_code_deploy -ni
 
 # Deploy to AgentCore Runtime
 agentcore deploy
 
 # Invoke your deployed agent
-agentcore invoke "Tell me a joke"
+agentcore invoke '{"prompt": "Tell me a joke"}'
 ```
 
 ## Learn More

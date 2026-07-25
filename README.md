@@ -12,7 +12,7 @@
   <a href="https://docs.aws.amazon.com/bedrock-agentcore/latest/devguide/"><img src="https://img.shields.io/badge/docs-AWS%20Documentation-232F3E?logo=amazonaws" alt="AWS Docs"/></a>
   <a href="https://github.com/awslabs/amazon-bedrock-agentcore-samples/"><img src="https://img.shields.io/badge/samples-GitHub-181717?logo=github" alt="Samples"/></a>
   <a href="https://aws.amazon.com/bedrock/agentcore/pricing/"><img src="https://img.shields.io/badge/pricing-consumption--based-green" alt="Pricing"/></a>
-  <a href="#regional-availability"><img src="https://img.shields.io/badge/regions-4%20available-blue" alt="Regions"/></a>
+  <a href="#regional-availability"><img src="https://img.shields.io/badge/regions-multi--region-blue" alt="Regions"/></a>
 </p>
 
 <p align="center">
@@ -63,25 +63,26 @@
 ### 1. Install the SDK and CLI
 
 ```bash
-pip install amazon-bedrock-agentcore agentcore-starter-toolkit
+pip install bedrock-agentcore bedrock-agentcore-starter-toolkit
 ```
 
 ### 2. Create Your First Agent
 
 ```bash
-agentcore create my-first-agent
+agentcore create -p myfirstagent
+cd myfirstagent
 ```
 
 ### 3. Deploy to AgentCore
 
 ```bash
-agentcore deploy my-first-agent
+agentcore deploy
 ```
 
 ### 4. Invoke Your Agent
 
 ```bash
-agentcore invoke my-first-agent "Hello, agent!"
+agentcore invoke '{"prompt": "Hello, agent!"}'
 ```
 
 > [!TIP]
@@ -240,7 +241,7 @@ LLM-as-a-Judge
 - Online evaluation
 - Custom evaluators
 - Quality monitoring
-- **Preview**
+- GA, billed per token
 
 [Learn more →](docs/services/evaluations.md)
 
@@ -253,7 +254,7 @@ Cedar access control
 - Natural language authoring
 - Fine-grained rules
 - Deterministic enforcement
-- **Preview**
+- GA, billed per token
 
 [Learn more →](docs/services/policy.md)
 
@@ -281,12 +282,16 @@ AgentCore works with **any agent framework**:
 
 ## Regional Availability
 
-| Region | Code | Status |
-|--------|------|--------|
-| US East (N. Virginia) | `us-east-1` | ✅ GA |
-| US West (Oregon) | `us-west-2` | ✅ GA |
-| Asia Pacific (Sydney) | `ap-southeast-2` | ✅ GA |
-| Europe (Frankfurt) | `eu-central-1` | ✅ GA |
+AgentCore spans many AWS regions, and coverage varies by service (Runtime, Gateway, Identity, Built-in Tools, and Observability have the broadest reach; some newer capabilities are checked in a narrower subset). See the [AWS AgentCore Supported Regions page](https://docs.aws.amazon.com/bedrock-agentcore/latest/devguide/agentcore-regions.html) for the current, authoritative list rather than relying on a hardcoded table here.
+
+Commonly used regions:
+
+| Region | Code |
+|--------|------|
+| US East (N. Virginia) | `us-east-1` |
+| US West (Oregon) | `us-west-2` |
+| Asia Pacific (Sydney) | `ap-southeast-2` |
+| Europe (Frankfurt) | `eu-central-1` |
 
 ---
 
@@ -312,8 +317,8 @@ agentcore/
 │   └── images/                 # Generated artwork
 ├── docs/                        # GitHub documentation
 │   ├── getting-started.md      # Quick start guide
-│   ├── services/               # Service deep dives
-│   └── contributing.md         # How to contribute
+│   └── services/               # Service deep dives
+├── CONTRIBUTING.md              # How to contribute
 └── .claude/skills/              # Claude Code skills
     ├── agentcore/              # Developer assistance
     └── agentcore-article/      # Content generation

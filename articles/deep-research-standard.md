@@ -18,7 +18,7 @@ AgentCore Runtime lets you deploy a LangGraph research agent that runs for up to
 
 ```bash
 # Install dependencies
-pip install boto3 langgraph langchain-aws playwright
+pip install boto3 bedrock-agentcore bedrock-agentcore-starter-toolkit langgraph langchain-aws playwright
 playwright install chromium
 
 # Set environment variables
@@ -45,7 +45,7 @@ class ResearchState(TypedDict):
     synthesis: str
 
 llm = ChatBedrock(model_id="us.anthropic.claude-haiku-4-5-20251001-v1:0", region_name="us-east-1")
-browser_client = BrowserClient(region_name="us-east-1")
+browser_client = BrowserClient("us-east-1")
 
 async def plan_research(state: ResearchState) -> dict:
     """Ask the LLM to generate target URLs for the research topic."""
@@ -58,11 +58,11 @@ async def plan_research(state: ResearchState) -> dict:
 async def browse_pages(state: ResearchState) -> dict:
     """Visit each URL with AgentCore Browser and extract page content."""
     pages = []
-    async with browser_client.start_session(
-        browser_id="aws.browser.v1", timeout_seconds=3600
-    ) as session:
+    browser_client.start(identifier="aws.browser.v1", session_timeout_seconds=3600)
+    try:
+        ws_url, headers = browser_client.generate_ws_headers()
         async with async_playwright() as pw:
-            browser = await pw.chromium.connect_over_cdp(session.automation_stream_url)
+            browser = await pw.chromium.connect_over_cdp(ws_url, headers=headers)
             page = browser.contexts[0].pages[0]
             for url in state["urls_to_visit"]:
                 try:
@@ -73,6 +73,8 @@ async def browse_pages(state: ResearchState) -> dict:
                     pages.append({"url": url, "title": title, "content": text[:8000]})
                 except Exception as e:
                     pages.append({"url": url, "error": str(e)})
+    finally:
+        browser_client.stop()
     return {"pages_visited": pages}
 
 async def synthesize(state: ResearchState) -> dict:
@@ -114,12 +116,9 @@ if __name__ == "__main__":
 ### Deploy with 8-Hour Timeout
 
 ```bash
-# Deploy the deep research agent to AgentCore Runtime
-agentcore deploy \
-    --name deep-research-agent \
-    --memory 2048 \
-    --timeout 28800 \
-    --region us-east-1
+# Set the 8-hour max session lifetime, then deploy to AgentCore Runtime
+agentcore configure --name deep-research-agent --max-lifetime 28800
+agentcore deploy --agent deep-research-agent
 ```
 
 ### Invoke Asynchronously and Poll for Results
@@ -130,7 +129,7 @@ import boto3, json
 client = boto3.client("bedrock-agentcore", region_name="us-east-1")
 
 response = client.invoke_agent_runtime(
-    agentRuntimeArn="arn:aws:bedrock-agentcore:us-east-1:123456789012:agent/deep-research-agent",
+    agentRuntimeArn="arn:aws:bedrock-agentcore:us-east-1:123456789012:runtime/deep-research-agent",
     runtimeSessionId="research-session-001",
     payload=json.dumps({
         "topic": "Enterprise adoption patterns for AI agent frameworks in 2025"

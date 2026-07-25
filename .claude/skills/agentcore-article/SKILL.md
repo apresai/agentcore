@@ -161,12 +161,14 @@ import boto3
 client = boto3.client('bedrock-agentcore')
 ```
 
+**Model ID (any example that invokes a model):** use `us.anthropic.claude-haiku-4-5-20251001-v1:0` — the repo-wide convention (see `CLAUDE.md`). The `us.` prefix and `-v1:0` suffix are both required for `strands.models.BedrockModel` and `langchain_aws.ChatBedrock`; for OpenAI Agents SDK use `bedrock/us.anthropic.claude-haiku-4-5-20251001-v1:0`. Never use a bare `anthropic.claude-*` ID or a `global.` prefix.
+
 **AgentCore CLI commands reference:**
 ```bash
-agentcore create    # Create new agent
-agentcore deploy    # Deploy agent to Runtime
-agentcore invoke    # Invoke deployed agent
-agentcore tools     # Manage Gateway tools
+agentcore create                            # Create new agent
+agentcore deploy                            # Deploy agent to Runtime
+agentcore invoke                            # Invoke deployed agent
+agentcore gateway create-mcp-gateway-target # Register a Gateway tool target
 ```
 
 **Every code example must include:**
@@ -433,7 +435,6 @@ Expected output:
 # requirements.txt
 bedrock-agentcore
 boto3>=1.34.0
-python-dotenv>=1.0.0
 ```
 
 ## Getting Started
@@ -592,7 +593,6 @@ articles/examples/[feature]/
 
 bedrock-agentcore
 boto3>=1.34.0
-python-dotenv>=1.0.0
 ```
 
 **package.json (TypeScript):**
@@ -606,8 +606,7 @@ python-dotenv>=1.0.0
     "start": "npx ts-node main.ts"
   },
   "dependencies": {
-    "@aws-sdk/client-bedrock-agentcore": "^3.0.0",
-    "dotenv": "^16.0.0"
+    "@aws-sdk/client-bedrock-agentcore": "^3.0.0"
   },
   "devDependencies": {
     "typescript": "^5.0.0",
@@ -673,10 +672,6 @@ Expected output:
 """
 
 import os
-from dotenv import load_dotenv
-
-# Load environment variables
-load_dotenv()
 
 # AgentCore via boto3 (data plane client; agent-side code uses
 # `from bedrock_agentcore.runtime import BedrockAgentCoreApp` instead)
@@ -761,15 +756,15 @@ python main.py  # or: npx ts-node main.ts, go run main.go
 
 | Feature | Cleanup Command |
 |---------|-----------------|
-| **Runtime** | `agentcore destroy --name [agent-name] --force` |
-| **Memory** | `aws bedrock-agentcore delete-memory --memory-id [id]` |
-| **Gateway** | `aws bedrock-agentcore delete-gateway --gateway-id [id]` |
-| **Identity** | `aws bedrock-agentcore delete-credential --credential-id [id]` |
+| **Runtime** | `agentcore destroy --agent [agent-name] --force` |
+| **Memory** | `agentcore memory delete [memory-id] --wait` |
+| **Gateway** | `agentcore gateway delete-mcp-gateway --id [gateway-id] --force` |
+| **Identity** | `agentcore identity cleanup --agent [agent-name] --force` |
 | **Code Interpreter** | (auto-cleanup - sessions are ephemeral) |
 | **Browser** | (auto-cleanup - sessions are ephemeral) |
 | **Observability** | (no cleanup needed - logs remain in CloudWatch) |
 | **Evaluations** | (no cleanup needed - results stored automatically) |
-| **Policy** | `aws bedrock-agentcore delete-policy --policy-id [id]` |
+| **Policy** | `agentcore policy delete-policy --policy-engine-id [engine-id] --policy-id [policy-id]` |
 
 #### If Test Fails
 

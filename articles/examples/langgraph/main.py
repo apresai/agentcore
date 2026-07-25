@@ -33,16 +33,9 @@ Expected output:
     ============================================================
 """
 
-import os
 import sys
-import json
 
-# Optional: load environment variables from .env file
-try:
-    from dotenv import load_dotenv
-    load_dotenv()
-except ImportError:
-    pass
+from config import AWS_REGION, MODEL_ID
 
 
 def build_graph():
@@ -58,8 +51,8 @@ def build_graph():
         iteration: int
 
     model = ChatBedrock(
-        model_id="us.anthropic.claude-haiku-4-5-20251001-v1:0",
-        region_name=os.getenv("AWS_REGION", "us-east-1")
+        model_id=MODEL_ID,
+        region_name=AWS_REGION
     )
 
     def research(state: AgentState) -> dict:
@@ -188,10 +181,10 @@ def main():
     print("\n[Step 3] Ready for deployment:")
     print("  " + "-" * 50)
     print("  # Scaffold project")
-    print("  agentcore create --framework langgraph --name research-agent")
+    print("  agentcore create --project-name researchagent --agent-framework LangChain_LangGraph")
     print("")
     print("  # Deploy to AgentCore Runtime")
-    print("  agentcore deploy --region us-east-1")
+    print("  agentcore deploy")
     print("")
     print("  # Invoke")
     print('  agentcore invoke \'{"prompt": "Your research query"}\'')

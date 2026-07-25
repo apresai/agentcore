@@ -30,11 +30,11 @@ pip install -r requirements.txt
 
 ```bash
 # Test locally
-python main.py
+python main.py --demo
 
 # Deploy to AgentCore Runtime
-agentcore create --framework langgraph --model-provider bedrock --name research-agent
-agentcore deploy --region us-east-1
+agentcore create --project-name researchagent --agent-framework LangChain_LangGraph --model-provider Bedrock
+agentcore deploy
 agentcore invoke '{"prompt": "Explain graph-based agent architectures"}'
 ```
 
@@ -55,7 +55,7 @@ AgentCore LangGraph Agent
 ✓ Analysis generated
 
 [Step 3] Ready for deployment:
-  agentcore deploy --region us-east-1
+  agentcore deploy
 
 ============================================================
 ```

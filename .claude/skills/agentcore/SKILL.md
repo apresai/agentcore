@@ -24,8 +24,11 @@ Help users build, deploy, and troubleshoot AI agents with AWS Bedrock AgentCore.
 | **Code Interpreter** | Secure Python/JS/TS execution | GA |
 | **Browser** | Isolated web interaction | GA |
 | **Observability** | OTEL-compatible tracing | GA |
-| **Evaluations** | LLM-as-a-Judge quality | Preview |
-| **Policy** | Cedar-based access control | Preview |
+| **Evaluations** | LLM-as-a-Judge quality | GA |
+| **Policy** | Cedar-based access control | GA |
+| **Harness** | Managed multi-turn agent hosting | GA |
+| **Registry** | Discover/manage agents, tools, resources | Preview |
+| **Payments** | Agent-initiated payment authorization | Preview |
 
 ### CLI Commands
 
@@ -56,14 +59,19 @@ data = boto3.client('bedrock-agentcore', region_name='us-east-1')
 from bedrock_agentcore.runtime import BedrockAgentCoreApp
 from bedrock_agentcore.memory import MemoryClient
 from bedrock_agentcore.gateway import GatewayClient
+
+# Newer submodules (bedrock-agentcore 1.18.1)
+from bedrock_agentcore.policy import PolicyEngineClient
+from bedrock_agentcore.payments import PaymentClient, PaymentManager
+from bedrock_agentcore.knowledge_base import KnowledgeBaseClient
+from bedrock_agentcore.config_bundle import ConfigBundleClient
 ```
 
 ### Regions
 
-- `us-east-1` (N. Virginia)
-- `us-west-2` (Oregon)
-- `ap-southeast-2` (Sydney)
-- `eu-central-1` (Frankfurt)
+Commonly used: `us-east-1` (N. Virginia), `us-west-2` (Oregon), `ap-southeast-2` (Sydney), `eu-central-1` (Frankfurt).
+
+Per-feature availability varies; do not assume every region supports every service. Full, current list: [AgentCore Supported AWS Regions](https://docs.aws.amazon.com/bedrock-agentcore/latest/devguide/agentcore-regions.html).
 
 ### Pricing
 
@@ -427,11 +435,12 @@ Before declaring a long-running agent "production ready":
 # Check agent status
 agentcore status --agent my-agent
 
-# View CloudWatch logs
-aws logs tail /aws/bedrock-agentcore/runtimes/<agent_id> --follow
+# View CloudWatch logs (log group includes the endpoint name)
+aws logs tail /aws/bedrock-agentcore/runtimes/<agent_id>-<endpoint_name> --follow
 
-# Test locally with verbose logging
-AGENTCORE_LOG_LEVEL=DEBUG agentcore dev
+# Local dev server logs stream to the terminal directly
+# (there is no AGENTCORE_LOG_LEVEL env var; `agentcore dev` has no debug/verbose flag)
+agentcore dev
 
 # Invoke (there is no --debug flag)
 agentcore invoke '{"prompt": "test"}'
@@ -443,23 +452,27 @@ agentcore invoke '{"prompt": "test"}'
 
 ### Runtime Limits
 
+Verified against the AgentCore Runtime quota tables (2026-07-25).
+
 | Resource | Limit |
 |----------|-------|
-| Max execution time | 8 hours |
+| Synchronous request timeout | 15 min (not adjustable) |
+| Idle session timeout | 15 min of inactivity (adjustable — see Session lifecycle knobs above) |
+| Max session duration | 8 hrs (adjustable — see Session lifecycle knobs above) |
+| Max async job duration | 8 hrs (not adjustable) |
 | Max payload size | 100 MB |
-| Min memory | 128 MB |
-| Max memory | 10,240 MB |
-| Concurrent sessions | 1000 per endpoint |
+| Hardware per session | 2 vCPU / 8 GB (not adjustable; there is no separate "per-agent" memory quota) |
+| Active session workloads per account | 5,000 in us-east-1 & us-west-2; 2,500 elsewhere (adjustable via Service Quotas) |
 
 ### Supported Frameworks
 
 - **Strands** - AWS native, simplest path
 - **LangGraph** - LangChain ecosystem
 - **CrewAI** - Multi-agent collaboration
-- **LlamaIndex** - RAG-focused
+- **AutoGen** - Multi-agent conversations
 - **Google ADK** - Google's framework
 - **OpenAI Agents SDK** - OpenAI's framework
-- **Custom** - Any Python agent
+- **Custom** - Any Python agent (values above match `agentcore create --agent-framework`; anything else brings your own runtime code)
 
 ### Supported Models
 
@@ -473,6 +486,7 @@ agentcore invoke '{"prompt": "test"}'
 
 - **MCP** (Model Context Protocol) - Tool connectivity
 - **A2A** (Agent to Agent) - Inter-agent communication
+- **AG-UI** - Agent-to-frontend UI streaming (`AGUIApp`, `build_ag_ui_app`, `serve_ag_ui` in `bedrock_agentcore.runtime`)
 
 ---
 

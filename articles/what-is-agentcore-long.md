@@ -131,7 +131,7 @@ Observability provides visibility into how agents behave in production. It offer
 
 **When to use**: Debugging agent behavior, understanding decision-making processes, identifying performance issues, or auditing agent actions for compliance.
 
-### 8. Evaluations (Preview)
+### 8. Evaluations
 
 **What it does**: Automated quality assessment using LLM-as-a-Judge.
 
@@ -145,7 +145,7 @@ Evaluations measures how well agents perform tasks, handle edge cases, and maint
 
 **When to use**: Ensuring agents meet quality standards before deployment, continuous monitoring in production, comparing different configurations, or identifying regressions after changes.
 
-### 9. Policy (Preview)
+### 9. Policy
 
 **What it does**: Deterministic control over agent actions.
 
@@ -263,17 +263,17 @@ Security features designed for regulated industries:
 
 ```bash
 # Install packages
-pip install bedrock-agentcore strands-agents
+pip install bedrock-agentcore bedrock-agentcore-starter-toolkit strands-agents
 
 # Create your agent
-agentcore create my-first-agent
+agentcore create --project-name my-first-agent
 
 # Test locally
 agentcore dev
-agentcore invoke --dev "Hello, agent!"
+agentcore invoke --dev '{"prompt": "Hello, agent!"}'
 
 # Deploy to AWS
-agentcore launch
+agentcore deploy
 agentcore invoke '{"prompt": "Hello from production!"}'
 ```
 
@@ -307,8 +307,8 @@ if __name__ == "__main__":
 | Gateway | Per request | $0.005/1K invocations |
 | Memory | Per operation | $0.25/1K short-term events |
 | Identity | Free via Runtime | $0.01/1K standalone requests |
-| Policy | Preview | Currently free |
-| Evaluations | Preview | Currently free |
+| Policy | Per token | Billed per 1M input tokens processed for authorization requests |
+| Evaluations | Per token | Billed on input/output tokens processed during evaluation |
 
 ### Cost Example: Customer Support Agent
 
@@ -326,13 +326,7 @@ New AWS customers receive **$200 in Free Tier credits** for AgentCore services.
 
 ## Regional Availability
 
-AgentCore core services (Runtime, Memory, Gateway, Identity) are available in 14 regions:
-- **US**: us-east-1 (N. Virginia), us-east-2 (Ohio), us-west-2 (Oregon)
-- **Europe**: eu-central-1 (Frankfurt), eu-west-1 (Ireland), eu-west-2 (London), eu-west-3 (Paris), eu-north-1 (Stockholm)
-- **Asia Pacific**: ap-south-1 (Mumbai), ap-southeast-1 (Singapore), ap-southeast-2 (Sydney), ap-northeast-1 (Tokyo), ap-northeast-2 (Seoul)
-- **Canada**: ca-central-1 (Canada)
-
-Memory is also available in sa-east-1 (Sao Paulo). Observability and Policy are available in a subset of 9 regions. Evaluations is currently available in 4 regions.
+AgentCore core services (Runtime, Gateway, Identity, Observability) are available across the broadest set of AWS regions, commonly including US East (N. Virginia, Ohio), US West (Oregon), Europe (Frankfurt, Ireland, London), and Asia Pacific (Tokyo, Singapore, Sydney). Newer capabilities like Memory, Policy, and Evaluations are available in a narrower subset of regions, and that subset is still expanding. Region support differs by service, so check the current [AWS Supported Regions page](https://docs.aws.amazon.com/bedrock-agentcore/latest/devguide/agentcore-regions.html) before you plan a deployment.
 
 ## Key Takeaways
 

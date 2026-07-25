@@ -12,9 +12,10 @@ This guide walks you through everything you need to deploy your first AI agent o
 |---------|-------------|
 | `agentcore create` | Create a new agent project (interactive) |
 | `agentcore dev` | Start local development server |
-| `agentcore invoke --dev "prompt"` | Test agent locally |
-| `agentcore launch` | Deploy agent to AgentCore Runtime |
+| `agentcore invoke --dev '{"prompt": "..."}'` | Test agent locally (JSON payload; a bare string is rejected) |
+| `agentcore deploy` | Deploy agent to AgentCore Runtime (formerly `launch`) |
 | `agentcore invoke '{"prompt": "..."}'` | Invoke deployed agent |
+| `agentcore status` | Get deployment status |
 | `agentcore destroy` | Delete deployed resources |
 | `agentcore configure` | Configure existing agent for deployment |
 | `agentcore memory create` | Create memory resource |
@@ -307,27 +308,39 @@ pip install crewai crewai-tools
 agentcore --help
 ```
 
-You should see the CLI help output with available commands:
+You should see the CLI help output with available commands (there is no `--version` flag, and `launch` no longer appears — `deploy` replaced it):
 
 ```
 Usage: agentcore [OPTIONS] COMMAND [ARGS]...
 
-  Amazon Bedrock AgentCore Starter Toolkit CLI
+  BedrockAgentCore CLI
 
 Options:
-  --version  Show the version and exit.
-  --help     Show this message and exit.
+  --help  Show this message and exit.
 
 Commands:
-  configure  Configure an existing agent for deployment
-  create     Create a new agent project
-  deploy     Deploy agent (alias for launch)
-  destroy    Delete deployed resources
-  dev        Start local development server
-  gateway    Gateway management commands
-  invoke     Invoke your agent
-  launch     Deploy agent to AgentCore Runtime
-  memory     Memory management commands
+  dev                        Start a local development server for your agent
+                              with hot reloading.
+  deploy                     Deploy Bedrock AgentCore with three deployment
+                              modes (formerly 'launch').
+  invoke                     Invoke Bedrock AgentCore endpoint.
+  status                     Get Bedrock AgentCore status including config
+                              and runtime details.
+  destroy                    Destroy Bedrock AgentCore resources.
+  stop-session               Stop an active runtime session.
+  create_mcp_gateway         Creates an MCP Gateway.
+  create_mcp_gateway_target  Creates an MCP Gateway Target.
+  create                     create an agentcore project
+  configure                  Configuration management
+  identity                   Manage Identity service resources
+  gateway                    Manage Bedrock AgentCore Gateways
+  memory                     Manage Bedrock AgentCore Memory resources
+  obs                        Query and visualize agent observability data
+                              (spans, traces, logs)
+  policy                     Manage Bedrock AgentCore Policy Engines and
+                              Policies
+  eval                       Evaluate agent performance using built-in and
+                              custom evaluators
 ```
 
 ---
@@ -403,7 +416,7 @@ This starts a server on `http://localhost:8080` that mimics the AgentCore Runtim
 In a separate terminal, test your agent:
 
 ```bash
-agentcore invoke --dev "Hello! What can you help me with?"
+agentcore invoke --dev '{"prompt": "Hello! What can you help me with?"}'
 ```
 
 You should see a response from your agent.
@@ -413,7 +426,7 @@ You should see a response from your agent.
 When you're satisfied with local testing, deploy:
 
 ```bash
-agentcore launch
+agentcore deploy
 ```
 
 This command:
@@ -442,7 +455,7 @@ import json
 import uuid
 import boto3
 
-# Replace with your agent ARN from agentcore launch output
+# Replace with your agent ARN from agentcore deploy output
 AGENT_ARN = "arn:aws:bedrock-agentcore:us-east-1:123456789012:agent-runtime/my-agent"
 
 def invoke_agent(prompt: str) -> dict:
@@ -673,7 +686,7 @@ app = BedrockAgentCoreApp()
 
 def create_crew():
     llm = ChatBedrock(
-        model_id="anthropic.claude-sonnet-4-6",
+        model_id="us.anthropic.claude-haiku-4-5-20251001-v1:0",
         model_kwargs={"temperature": 0.1}
     )
 
@@ -747,19 +760,19 @@ agentcore dev
 
 Options:
 
-- `--port PORT`: Change the default port (8080)
-- `--host HOST`: Change the default host (localhost)
-- `--reload`: Enable auto-reload on code changes
+- `--port`, `-p`: Change the default port (8080)
+- `--env`, `-env`: Environment variables for the agent (format: `KEY=VALUE`)
+
+There is no `--host` or `--reload` flag.
 
 ### Testing Locally
 
-Use the `--dev` flag with `agentcore invoke`:
+Use the `--dev` flag with `agentcore invoke`. `PAYLOAD` is a required JSON argument — a bare string is not accepted:
 
 ```bash
-# Simple text prompt
-agentcore invoke --dev "What is 2 + 2?"
-
 # JSON payload
+agentcore invoke --dev '{"prompt": "What is 2 + 2?"}'
+
 agentcore invoke --dev '{"prompt": "Summarize this document", "document": "..."}'
 ```
 
@@ -802,7 +815,7 @@ export GOOGLE_API_KEY=...
 The simplest option using AWS CodeBuild (no Docker required locally):
 
 ```bash
-agentcore launch
+agentcore deploy
 ```
 
 This is the recommended approach for most use cases.
@@ -812,7 +825,7 @@ This is the recommended approach for most use cases.
 If you have Docker installed and want to build locally:
 
 ```bash
-agentcore launch --local-build
+agentcore deploy --local-build
 ```
 
 This builds the container on your machine and pushes to ECR.
@@ -822,7 +835,7 @@ This builds the container on your machine and pushes to ECR.
 For development and testing only:
 
 ```bash
-agentcore launch --local
+agentcore deploy --local
 ```
 
 This builds and runs entirely locally (requires Docker).
@@ -831,9 +844,9 @@ This builds and runs entirely locally (requires Docker).
 
 | Method | Docker Required | Build Location | Best For |
 |--------|-----------------|----------------|----------|
-| `agentcore launch` | No | AWS CodeBuild | Most users |
-| `agentcore launch --local-build` | Yes | Local machine | Build customization |
-| `agentcore launch --local` | Yes | Local machine | Development only |
+| `agentcore deploy` | No | AWS CodeBuild | Most users |
+| `agentcore deploy --local-build` | Yes | Local machine | Build customization |
+| `agentcore deploy --local` | Yes | Local machine | Development only |
 
 ### Custom Execution Role
 
@@ -841,7 +854,7 @@ Use an existing IAM role:
 
 ```bash
 agentcore configure -e agent.py --execution-role arn:aws:iam::123456789012:role/MyRole
-agentcore launch
+agentcore deploy
 ```
 
 ### ARM64 Requirement
@@ -1009,10 +1022,11 @@ agentcore gateway create-mcp-gateway \
 **Step 2: Add Targets**
 
 ```bash
-# Add a Lambda target
+# Add a Lambda target (--role-arn is required — the gateway's execution role)
 agentcore gateway create-mcp-gateway-target \
   --gateway-arn arn:aws:bedrock-agentcore:us-east-1:123456789012:gateway/my-gateway \
   --gateway-url https://gateway.bedrock-agentcore.us-east-1.amazonaws.com/my-gateway \
+  --role-arn arn:aws:iam::123456789012:role/MyGatewayRole \
   --name MyLambdaTarget \
   --target-type lambda
 ```
@@ -1022,29 +1036,29 @@ agentcore gateway create-mcp-gateway-target \
 ```python
 from strands import Agent
 from strands.tools.mcp import MCPClient
+from mcp.client.streamable_http import streamablehttp_client
 
-# Connect to gateway
-mcp_client = MCPClient(gateway_url="YOUR_GATEWAY_URL")
+# Connect to gateway. MCPClient takes a transport callable, not a URL.
+mcp_client = MCPClient(lambda: streamablehttp_client("YOUR_GATEWAY_URL"))
 
 # Create agent with gateway tools
-agent = Agent(tools=mcp_client.list_tools())
+with mcp_client:
+    agent = Agent(tools=mcp_client.list_tools_sync())
 ```
 
 ### Adding Code Interpreter
 
-Code Interpreter enables secure Python/JavaScript execution.
+Code Interpreter enables secure Python/JavaScript execution. `CodeInterpreter` takes `region` as a **positional** argument (not `region_name`), and there is no `create_session()` — call `start()` explicitly, or just call `execute_code()` and let it auto-start a session for you.
 
 ```python
 from bedrock_agentcore.tools import CodeInterpreter
 
-# Create interpreter
-interpreter = CodeInterpreter(
-    region_name="us-east-1",
-    # Optional: VPC configuration for network access
-)
+# Create interpreter (region is positional)
+interpreter = CodeInterpreter("us-east-1")
+interpreter.start()
 
-# Execute code
-result = interpreter.execute("""
+# Execute code — the method is execute_code(), not execute()
+result = interpreter.execute_code("""
 import pandas as pd
 import matplotlib.pyplot as plt
 
@@ -1053,27 +1067,28 @@ data = pd.DataFrame({'x': [1, 2, 3], 'y': [4, 5, 6]})
 print(data.describe())
 """)
 
-print(result.output)
+# execute_code() returns a dict, not an object with an .output attribute
+print(result)
+
+interpreter.stop()
 ```
 
 ### Adding Browser
 
-Browser enables web interaction capabilities.
+Browser enables web interaction capabilities. There is no `bedrock_agentcore.tools.Browser` class — use `BrowserClient` (see [AgentCore Browser](./06-browser.md) for the full session-lifecycle and WebSocket-connection pattern).
 
 ```python
-from bedrock_agentcore.tools import Browser
+from bedrock_agentcore.tools.browser_client import BrowserClient
 
-# Create browser instance
-browser = Browser(
-    region_name="us-east-1",
-    # Optional: session recording
-    record_session=True
-)
+# region is positional, not region_name
+client = BrowserClient("us-east-1")
+session_id = client.start()
 
-# Navigate and interact
-browser.navigate("https://example.com")
-content = browser.get_page_content()
-browser.click("#submit-button")
+# Automation requires a SigV4-signed WebSocket connection
+ws_url, headers = client.generate_ws_headers()
+# browser = await playwright.chromium.connect_over_cdp(ws_url, headers=headers)
+
+client.stop()
 ```
 
 ---
@@ -1148,20 +1163,23 @@ An agent that can search the web and synthesize information:
 ```python
 from strands import Agent
 from strands.tools.mcp import MCPClient
+from mcp.client.streamable_http import streamablehttp_client
 from bedrock_agentcore.runtime import BedrockAgentCoreApp
 
 app = BedrockAgentCoreApp()
 
-# Connect to gateway with web search tool
-mcp_client = MCPClient(gateway_url="YOUR_GATEWAY_URL")
+# Connect to gateway with web search tool. MCPClient takes a transport
+# callable, not a URL.
+mcp_client = MCPClient(lambda: streamablehttp_client("YOUR_GATEWAY_URL"))
 
-agent = Agent(
-    system_prompt="""You are a research assistant.
-    Use the web search tool to find accurate, up-to-date information.
-    Always cite your sources.
-    Synthesize information from multiple sources when possible.""",
-    tools=mcp_client.list_tools()
-)
+with mcp_client:
+    agent = Agent(
+        system_prompt="""You are a research assistant.
+        Use the web search tool to find accurate, up-to-date information.
+        Always cite your sources.
+        Synthesize information from multiple sources when possible.""",
+        tools=mcp_client.list_tools_sync()
+    )
 
 @app.entrypoint
 def research_agent(payload, context):
@@ -1195,7 +1213,7 @@ from bedrock_agentcore.tools import CodeInterpreter
 
 app = BedrockAgentCoreApp()
 
-interpreter = CodeInterpreter(region_name="us-east-1")
+interpreter = CodeInterpreter("us-east-1")  # region is positional
 
 agent = Agent(
     system_prompt="""You are a data analysis assistant.
@@ -1220,14 +1238,13 @@ def analysis_agent(payload, context):
 
     result = agent(code_prompt)
 
-    # Extract and execute the code
+    # Extract and execute the code (execute_code(), not execute(); returns a dict)
     code = extract_code_block(result.message)
     if code:
-        execution_result = interpreter.execute(code)
+        execution_result = interpreter.execute_code(code)
         return {
             "analysis": result.message,
-            "execution_output": execution_result.output,
-            "charts": execution_result.artifacts
+            "execution_result": execution_result
         }
 
     return {"result": result.message}
@@ -1400,14 +1417,19 @@ relevant_memories = session.search_long_term_memories(
 )
 ```
 
-**Pattern 3: Memory with TTL**
+**Pattern 3: Short-Term Events Feeding Long-Term Extraction**
+
+`add_turns()` has no `ttl` parameter, and there is no `add_long_term_memory()` method — you cannot write a long-term fact directly. Short-term events expire per the memory resource's `--event-expiry-days` setting (see Adding Memory above), and long-term records are produced automatically by the extraction strategies configured on the memory resource (e.g. `semanticMemoryStrategy`) as they process the short-term events you write:
 
 ```python
-# Short-term memory expires after session
-session.add_turns(messages, ttl=3600)  # 1 hour
+# Every add_turns() call feeds the configured extraction strategies
+session.add_turns(messages)
 
-# Long-term memory persists
-session.add_long_term_memory(fact="User prefers email communication")
+# Long-term records appear later, once extraction has run, via search
+relevant_memories = session.search_long_term_memories(
+    query="communication preference",
+    top_k=5
+)
 ```
 
 ---
@@ -1465,7 +1487,7 @@ session.add_long_term_memory(fact="User prefers email communication")
 3. Fix and retry:
    ```bash
    agentcore destroy
-   agentcore launch
+   agentcore deploy
    ```
 
 #### Port 8080 In Use (Local Development)
@@ -1511,7 +1533,7 @@ agentcore dev --port 8081
 
 1. Use CodeBuild (recommended):
    ```bash
-   agentcore launch  # No --local-build flag
+   agentcore deploy  # No --local-build flag
    ```
 
 2. If building locally, ensure ARM64 architecture:
@@ -1591,12 +1613,7 @@ aws iam delete-role --role-name AmazonBedrockAgentCoreRole-YOUR_AGENT
 
 ### Supported Regions
 
-AgentCore is available in:
-
-- `us-east-1` (N. Virginia)
-- `us-west-2` (Oregon)
-- `eu-central-1` (Frankfurt)
-- `ap-southeast-2` (Sydney)
+AgentCore Runtime, Gateway, Identity, Built-in Tools, and Observability are available in 19 commercial regions plus AWS GovCloud (US-West); other features (Memory, Policy, Evaluations, etc.) are available in narrower subsets. Commonly used regions: `us-east-1` (N. Virginia), `us-west-2` (Oregon), `eu-central-1` (Frankfurt), `ap-southeast-2` (Sydney). See the live [AgentCore Supported AWS Regions](https://docs.aws.amazon.com/bedrock-agentcore/latest/devguide/agentcore-regions.html) page for the full, current, per-feature matrix.
 
 ### Getting Help
 

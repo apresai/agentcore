@@ -42,18 +42,11 @@ Expected output:
     ============================================================
 """
 
-import os
-import json
 import time
 import boto3
 from botocore.exceptions import ClientError
 
-# Optional: load environment variables from .env file
-try:
-    from dotenv import load_dotenv
-    load_dotenv()
-except ImportError:
-    pass
+from config import AWS_REGION, CODE_INTERPRETER_ID, SESSION_TIMEOUT_SECONDS
 
 
 def main():
@@ -69,13 +62,11 @@ def main():
     print("  Deep Thought computed for 7.5 million years.")
     print("  Code Interpreter does it in seconds.")
 
-    region = os.getenv("AWS_REGION", "us-east-1")
-
     # Initialize the AgentCore data plane client
-    client = boto3.client('bedrock-agentcore', region_name=region)
+    client = boto3.client('bedrock-agentcore', region_name=AWS_REGION)
 
     session_id = None
-    code_interpreter_id = "aws.codeinterpreter.v1"  # AWS managed resource
+    code_interpreter_id = CODE_INTERPRETER_ID  # AWS managed resource
 
     try:
         # Step 1: Start a Code Interpreter session
@@ -86,7 +77,7 @@ def main():
         start_response = client.start_code_interpreter_session(
             codeInterpreterIdentifier=code_interpreter_id,
             name=session_name,
-            sessionTimeoutSeconds=900  # 15 minutes
+            sessionTimeoutSeconds=SESSION_TIMEOUT_SECONDS
         )
 
         session_id = start_response['sessionId']

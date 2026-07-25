@@ -101,7 +101,7 @@ Create a custom browser for recording:
 aws bedrock-agentcore-control create-browser \
     --name "recording-browser" \
     --network-configuration '{"networkMode": "PUBLIC"}' \
-    --recording '{"enabled": true, "s3Location": {"bucket": "my-bucket"}}'
+    --recording '{"enabled": true, "s3Location": {"bucket": "my-bucket", "prefix": "browser-sessions/"}}'
 ```
 
 ## Learn More

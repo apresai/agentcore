@@ -22,19 +22,14 @@ Usage:
     python main.py --demo
 """
 
-import os
 import sys
 import json
 
-# Optional: load environment variables from .env file
-try:
-    from dotenv import load_dotenv
-    load_dotenv()
-except ImportError:
-    pass  # dotenv is optional
-
 from strands import Agent
+from strands.models import BedrockModel
 from bedrock_agentcore.runtime import BedrockAgentCoreApp
+
+from config import AWS_REGION, MODEL_ID
 
 
 # =============================================================================
@@ -43,6 +38,7 @@ from bedrock_agentcore.runtime import BedrockAgentCoreApp
 
 # Create the agent (lightweight — no API calls at import time)
 agent = Agent(
+    model=BedrockModel(model_id=MODEL_ID, region_name=AWS_REGION),
     system_prompt=(
         "You are Deep Thought, the second greatest computer in the Universe "
         "of Time and Space. You answer questions helpfully and concisely, "
@@ -72,8 +68,7 @@ def deploy_with_boto3(agent_name: str, role_arn: str, container_uri: str):
     """Deploy an agent using boto3 for more control over the process."""
     import boto3
 
-    region = os.getenv("AWS_REGION", "us-east-1")
-    client = boto3.client('bedrock-agentcore-control', region_name=region)
+    client = boto3.client('bedrock-agentcore-control', region_name=AWS_REGION)
 
     response = client.create_agent_runtime(
         agentRuntimeName=agent_name,
@@ -92,13 +87,12 @@ def invoke_with_boto3(agent_runtime_arn: str, prompt: str):
     """Invoke a deployed agent using boto3."""
     import boto3
 
-    region = os.getenv("AWS_REGION", "us-east-1")
-    client = boto3.client('bedrock-agentcore', region_name=region)
+    client = boto3.client('bedrock-agentcore', region_name=AWS_REGION)
 
     response = client.invoke_agent_runtime(
         agentRuntimeArn=agent_runtime_arn,
         runtimeSessionId='demo-session-001',
-        payload=json.dumps({"input": {"prompt": prompt}}),
+        payload=json.dumps({"prompt": prompt}),
         qualifier="DEFAULT"
     )
 

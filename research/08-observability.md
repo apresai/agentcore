@@ -20,11 +20,12 @@
 
 | Resource Type | Log Group Format |
 |---------------|------------------|
-| Runtime (stdout/stderr) | `/aws/bedrock-agentcore/runtimes/<agent_id>-<endpoint_name>/[runtime-logs] <UUID>` |
-| Runtime (OTEL structured) | `/aws/bedrock-agentcore/runtimes/<agent_id>-<endpoint_name>/otel-rt-logs` |
+| Runtime | `/aws/bedrock-agentcore/runtimes/<agent_id>-<endpoint_name>` |
 | Gateway | `/aws/vendedlogs/bedrock-agentcore/gateway/APPLICATION_LOGS/<gateway_id>` |
 | Memory | `/aws/vendedlogs/bedrock-agentcore/memory/APPLICATION_LOGS/<memory_id>` |
-| Traces/Spans | `/aws/spans/default` |
+| Traces/Spans (shared destination) | `aws/spans` |
+
+That Runtime group format is confirmed. Whether Runtime stdout/stderr and OTEL-structured logs land in that same group (in separate streams) or in a separate group entirely was not independently verified this pass — do not assert a specific stream-naming convention based on this page.
 
 ### OTEL Environment Variables
 
@@ -35,12 +36,12 @@ OTEL_PYTHON_DISTRO=aws_distro
 OTEL_PYTHON_CONFIGURATOR=aws_configurator
 
 # Resource attributes
-OTEL_RESOURCE_ATTRIBUTES=service.name=<agent-name>,aws.log.group.names=/aws/bedrock-agentcore/runtimes/<agent-id>
+OTEL_RESOURCE_ATTRIBUTES=service.name=<agent-name>,aws.log.group.names=/aws/bedrock-agentcore/runtimes/<agent-id>-<endpoint-name>
 
 # Exporter configuration
 OTEL_EXPORTER_OTLP_PROTOCOL=http/protobuf
 OTEL_TRACES_EXPORTER=otlp
-OTEL_EXPORTER_OTLP_LOGS_HEADERS=x-aws-log-group=/aws/bedrock-agentcore/runtimes/<agent-id>,x-aws-log-stream=runtime-logs,x-aws-metric-namespace=bedrock-agentcore
+OTEL_EXPORTER_OTLP_LOGS_HEADERS=x-aws-log-group=/aws/bedrock-agentcore/runtimes/<agent-id>-<endpoint-name>,x-aws-log-stream=runtime-logs,x-aws-metric-namespace=bedrock-agentcore
 ```
 
 ### CloudWatch Namespace
@@ -486,9 +487,7 @@ def start_session(session_id: str):
 **Logs:**
 
 1. Open CloudWatch Console > **Logs** > **Log groups**
-2. Search for your agent's log group:
-   - Standard logs: `/aws/bedrock-agentcore/runtimes/<agent_id>-<endpoint_name>/[runtime-logs]`
-   - OTEL logs: `/aws/bedrock-agentcore/runtimes/<agent_id>-<endpoint_name>/otel-rt-logs`
+2. Search for your agent's log group: `/aws/bedrock-agentcore/runtimes/<agent_id>-<endpoint_name>`
 
 **Traces:**
 
@@ -625,7 +624,7 @@ def get_weather(location: str) -> str:
 
 # Configure model and agent
 model = BedrockModel(
-    model_id="us.anthropic.claude-sonnet-4-6"
+    model_id="us.anthropic.claude-haiku-4-5-20251001-v1:0"
 )
 
 agent = Agent(
@@ -774,14 +773,14 @@ Complete Strands agent with observability integration.
 """
 from strands import Agent, tool
 from strands.models import BedrockModel
-from strands.telemetry import OTELConfig
+from strands.telemetry import StrandsTelemetry
 from opentelemetry import trace
 import boto3
 
 # Configure OTEL for Strands
-otel_config = OTELConfig(
-    service_name="strands-weather-agent",
-    enable_tracing=True,
+telemetry = StrandsTelemetry()
+telemetry.setup_otlp_exporter(
+    # service name and endpoint come from OTEL_* environment variables
     enable_metrics=True
 )
 
@@ -841,7 +840,7 @@ def get_forecast(location: str, days: int = 5) -> list:
 
 # Create agent with Bedrock model
 model = BedrockModel(
-    model_id="us.anthropic.claude-sonnet-4-6",
+    model_id="us.anthropic.claude-haiku-4-5-20251001-v1:0",
     region_name="us-east-1"
 )
 
@@ -895,7 +894,7 @@ def create_research_agent():
     """Create a LangGraph research agent with observability."""
 
     llm = ChatBedrock(
-        model_id="us.anthropic.claude-sonnet-4-6",
+        model_id="us.anthropic.claude-haiku-4-5-20251001-v1:0",
         region_name="us-east-1"
     )
 
@@ -1219,57 +1218,45 @@ runtime.configure(
 )
 runtime.launch()
 
-# Invoke with custom tracing headers
+# runtime.invoke() has no headers= parameter; pass the session ID directly
 response = runtime.invoke(
     {"prompt": "Hello"},
-    headers={
-        "X-Amzn-Trace-Id": "Root=1-5759e988-bd862e3fe1be46a994272793;Parent=53995c3f42cd8ad8;Sampled=1",
-        "X-Amzn-Bedrock-AgentCore-Runtime-Session-Id": "session-12345"
-    }
+    session_id="session-12345"
 )
 ```
 
 ### Integration with AgentCore Memory
 
-Enable memory observability through log delivery configuration:
+`UpdateMemory` and `UpdateGateway` do not take a `logDeliveryConfiguration` parameter — the CloudWatch log groups above (`/aws/vendedlogs/bedrock-agentcore/memory/APPLICATION_LOGS/<memory_id>` and `/aws/vendedlogs/bedrock-agentcore/gateway/APPLICATION_LOGS/<gateway_id>`) are populated automatically once the resource's execution role has `logs:CreateLogGroup`/`logs:CreateLogStream`/`logs:PutLogEvents` on that ARN — there is no separate "enable log delivery" call to make. Use the control-plane client (not the data-plane `bedrock-agentcore` client) for the calls this section does support, such as reading back a resource's configuration:
 
 ```python
 import boto3
 
-logs_client = boto3.client('logs')
-agentcore = boto3.client('bedrock-agentcore')
+control_client = boto3.client('bedrock-agentcore-control')
 
-# Configure log delivery for memory resource
-agentcore.update_memory(
-    memoryId="my-memory-id",
-    logDeliveryConfiguration={
-        "logType": "APPLICATION_LOGS",
-        "destination": {
-            "cloudWatchLogs": {
-                "logGroupArn": "arn:aws:logs:us-east-1:123456789012:log-group:/aws/vendedlogs/bedrock-agentcore/memory/APPLICATION_LOGS/my-memory-id"
-            }
-        }
-    }
-)
+response = control_client.get_memory(memoryId="my-memory-id")
+print(response["memory"]["memoryExecutionRoleArn"])
 ```
 
 ### Integration with AgentCore Gateway
 
-Gateway observability requires enabling log destinations:
+Gateway observability likewise depends on the gateway's execution role having permission to write to its log group — there is no `logDeliveryConfiguration` field on `UpdateGateway`. `UpdateGateway` requires `gatewayIdentifier`, `name`, `roleArn`, and `authorizerType` together (it is not a sparse patch), so changing the role means reading the current configuration back first:
 
 ```python
-# Enable gateway logging
-agentcore.update_gateway(
-    gatewayId="my-gateway-id",
-    logDeliveryConfiguration={
-        "logType": "APPLICATION_LOGS",
-        "destination": {
-            "cloudWatchLogs": {
-                "logGroupArn": "arn:aws:logs:us-east-1:123456789012:log-group:/aws/vendedlogs/bedrock-agentcore/gateway/APPLICATION_LOGS/my-gateway-id"
-            }
-        }
-    }
-)
+gateway = control_client.get_gateway(gatewayIdentifier="my-gateway-id")
+
+update_kwargs = {
+    "gatewayIdentifier": gateway["gatewayId"],
+    "name": gateway["name"],
+    "roleArn": "arn:aws:iam::123456789012:role/GatewayExecutionRole",
+    "authorizerType": gateway["authorizerType"],
+}
+# botocore rejects an explicit None for a structure parameter — only include
+# authorizerConfiguration if the gateway actually has one
+if gateway.get("authorizerConfiguration"):
+    update_kwargs["authorizerConfiguration"] = gateway["authorizerConfiguration"]
+
+control_client.update_gateway(**update_kwargs)
 ```
 
 Correlate gateway spans with logs using `span_id` and `trace_id`:
@@ -1505,12 +1492,12 @@ AgentCore Observability uses Amazon CloudWatch pricing:
 
 ## Related Services
 
-- [AgentCore Runtime](./02-runtime.md) - Serverless agent hosting
-- [AgentCore Memory](./03-memory.md) - Context persistence
-- [AgentCore Gateway](./04-gateway.md) - API and tool management
-- [AgentCore Identity](./05-identity.md) - Authentication and authorization
-- [AgentCore Policy](./09-policy.md) - Access control
-- [AgentCore Evaluations](./10-evaluations.md) - Quality assessment
+- [AgentCore Runtime](./01-runtime.md) - Serverless agent hosting
+- [AgentCore Memory](./02-memory.md) - Context persistence
+- [AgentCore Gateway](./03-gateway.md) - API and tool management
+- [AgentCore Identity](./04-identity.md) - Authentication and authorization
+- [AgentCore Policy](./07-policy.md) - Access control
+- [AgentCore Evaluations](./09-evaluations.md) - Quality assessment
 
 **External Resources:**
 

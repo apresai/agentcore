@@ -19,7 +19,7 @@ But even the *Heart of Gold* needed a ship around the drive. Running LangGraph i
 
 ```bash
 # Install dependencies
-pip install boto3 langgraph langchain-aws bedrock-agentcore-starter-toolkit
+pip install boto3 bedrock-agentcore bedrock-agentcore-starter-toolkit langgraph langchain-aws
 
 # Set environment variables
 export AWS_REGION=us-east-1
@@ -108,14 +108,13 @@ async def main(request):
     prompt = request.get("prompt", "")
 
     # Retrieve past context from AgentCore Memory
-    memories = memory_client.retrieve_memory_records(
+    memories = memory_client.retrieve_memories(
         memory_id=MEMORY_ID,
-        actor_id=user_id,
         query=prompt,
         namespace="research",
-        max_results=5
+        top_k=5
     )
-    context = "\n".join([m["content"] for m in memories])
+    context = "\n".join([m["content"]["text"] for m in memories])
 
     # Prepend context if available
     full_prompt = f"Previous context:\n{context}\n\nNew query: {prompt}" if context else prompt
@@ -135,8 +134,8 @@ async def main(request):
         actor_id=user_id,
         session_id=session_id,
         messages=[
-            {"role": "user", "content": prompt},
-            {"role": "assistant", "content": response_text}
+            (prompt, "USER"),
+            (response_text, "ASSISTANT")
         ]
     )
 
@@ -150,7 +149,7 @@ if __name__ == "__main__":
 
 ```bash
 # Scaffold a LangGraph project
-agentcore create --framework langgraph --model-provider bedrock --name research-agent
+agentcore create --agent-framework LangChain_LangGraph --model-provider Bedrock --project-name research-agent
 
 # Test locally before deploying
 agentcore dev
@@ -158,8 +157,9 @@ agentcore dev
 # Invoke the local dev server
 agentcore invoke --dev '{"prompt": "Explain graph-based agent architectures"}'
 
-# Deploy to AgentCore Runtime
-agentcore deploy --region us-east-1 --memory 1024 --timeout 28800
+# Set the 8-hour max session lifetime, then deploy to AgentCore Runtime
+agentcore configure --name research-agent --max-lifetime 28800
+agentcore deploy --agent research-agent
 
 # Invoke the deployed agent
 agentcore invoke '{"prompt": "Compare ReAct vs plan-and-execute patterns"}'
@@ -168,7 +168,7 @@ agentcore invoke '{"prompt": "Compare ReAct vs plan-and-execute patterns"}'
 agentcore invoke --session-id sess-001 '{"prompt": "Go deeper on plan-and-execute"}'
 
 # Check deployment status
-agentcore status --name research-agent
+agentcore status --agent research-agent
 ```
 
 ### Create Memory for Cross-Session Persistence
@@ -183,7 +183,7 @@ response = control.create_memory(
     name='LangGraphAgentMemory',
     memoryStrategies=[
         {
-            'sessionSummaryMemoryStrategy': {
+            'summaryMemoryStrategy': {
                 'name': 'ResearchSummarizer',
                 'namespaces': ['research']
             }
@@ -196,7 +196,7 @@ response = control.create_memory(
         }
     ]
 )
-memory_id = response['memoryId']
+memory_id = response['memory']['id']
 print(f"Memory created: {memory_id}")
 ```
 

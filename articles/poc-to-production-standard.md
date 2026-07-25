@@ -50,10 +50,10 @@ This is the moment your agent hitches a ride off the planet. Wrap your existing 
 
 ```bash
 pip install bedrock-agentcore bedrock-agentcore-starter-toolkit
-agentcore create --framework strands --model-provider bedrock --name support-agent
+agentcore create --agent-framework Strands --model-provider Bedrock --project-name support-agent
 agentcore dev                          # test locally
 agentcore invoke --dev '{"prompt": "What is order ORD-12345?"}'
-agentcore deploy --region us-east-1    # deploy to Runtime
+agentcore deploy                       # deploy to Runtime
 ```
 
 Your entry point wraps the existing agent with three lines of boilerplate:
@@ -119,30 +119,33 @@ account_id = boto3.client('sts').get_caller_identity()['Account']
 gateway = control.create_gateway(
     name='SupportGateway',
     roleArn=f'arn:aws:iam::{account_id}:role/GatewayExecutionRole',
-    authorizerType='IAM', protocolType='MCP',
-    searchConfiguration={'searchType': 'SEMANTIC'}
+    authorizerType='AWS_IAM', protocolType='MCP',
+    protocolConfiguration={'mcp': {'searchType': 'SEMANTIC'}}
 )
 
 control.create_gateway_target(
     gatewayIdentifier=gateway['gatewayId'], name='OrderService',
-    targetConfiguration={'lambdaTargetConfiguration': {
+    targetConfiguration={'mcp': {'lambda': {
         'lambdaArn': f'arn:aws:lambda:us-east-1:{account_id}:function:OrderLookup',
-        'toolSchema': {'tools': [{'name': 'lookup_order',
+        'toolSchema': {'inlinePayload': [{'name': 'lookup_order',
             'description': 'Look up order status by order ID',
             'inputSchema': {'type': 'object',
                 'properties': {'order_id': {'type': 'string'}},
                 'required': ['order_id']}}]}
-    }}
+    }}}
 )
 ```
 
-Your hardcoded `requests.get()` becomes a managed MCP tool:
+Your hardcoded `requests.get()` becomes a managed MCP tool. Gateway is itself an MCP server, so any MCP client connects to its endpoint (SigV4-signed, since this gateway uses `AWS_IAM`):
 
 ```python
 from strands.tools.mcp import MCPClient
+from mcp.client.streamable_http import streamablehttp_client
 
-mcp_client = MCPClient(gateway_url="YOUR_GATEWAY_URL")
-agent = Agent(model=model, tools=mcp_client.list_tools())
+gateway_url = control.get_gateway(gatewayIdentifier=gateway['gatewayId'])['gatewayUrl']
+mcp_client = MCPClient(lambda: streamablehttp_client(gateway_url))
+mcp_client.start()
+agent = Agent(model=model, tools=mcp_client.list_tools_sync())
 ```
 
 No more embedded credentials. Tools are discoverable, authenticated, and auditable.
@@ -152,26 +155,28 @@ No more embedded credentials. Tools are discoverable, authenticated, and auditab
 Replace shared API keys with per-user authentication. One CLI command connects your IdP:
 
 ```bash
-agentcore identity setup-aws-jwt \
-    --discovery-url https://cognito-idp.us-east-1.amazonaws.com/us-east-1_xxxxx/.well-known/openid-configuration \
-    --audience my-app-client-id --client-id my-app-client-id
+agentcore identity setup-cognito --auth-flow user
 ```
+
+This creates two Cognito pools -- one for inbound JWT authentication on your agent, one for outbound OAuth to external services -- and saves the configuration for subsequent commands.
 
 For agents accessing external services, Identity vends user-scoped credentials:
 
 ```python
-from bedrock_agentcore.identity import IdentityClient
+from bedrock_agentcore.services.identity import IdentityClient
 
-identity = IdentityClient(region_name='us-east-1')
+identity = IdentityClient(region='us-east-1')
 
 @app.entrypoint
 async def main(request):
     user_token = request.get("bearer_token")
     if not user_token:
         return {"error": "Authentication required"}
-    sf_token = identity.get_resource_oauth2_access_token(
-        credential_provider_arn="arn:aws:bedrock-agentcore:us-east-1:123456789012:credential-provider/salesforce",
-        workload_identity_token=user_token, scopes=["api"]
+    sf_token = identity.get_token(
+        provider_name="salesforce",
+        scopes=["api"],
+        agent_identity_token=user_token,
+        auth_flow="USER_FEDERATION",
     )
     result = agent(request.get("prompt", ""))
     return {"response": str(result)}

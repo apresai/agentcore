@@ -79,7 +79,7 @@ Sessions are isolated browser instances created from Browser Tools:
 - **Isolation**: Each session runs in a dedicated microVM with isolated CPU, memory, and filesystem
 - **Ephemeral**: Sessions are temporary and reset after each use
 - **Configurable timeout**: Default 15 minutes, maximum 8 hours
-- **Concurrent sessions**: Up to 500 simultaneous sessions per account
+- **Concurrent sessions**: Up to 1,000 simultaneous sessions per account
 - **Session data retention**: 30 days for session metadata
 
 ### WebSocket Streaming
@@ -190,8 +190,10 @@ aws bedrock-agentcore-control create-browser \
     --name "vpc-browser" \
     --network-configuration '{
         "networkMode": "VPC",
-        "securityGroupIds": ["sg-12345678"],
-        "subnetIds": ["subnet-12345678", "subnet-87654321"]
+        "vpcConfig": {
+            "securityGroups": ["sg-12345678"],
+            "subnets": ["subnet-12345678", "subnet-87654321"]
+        }
     }'
 ```
 
@@ -244,11 +246,10 @@ aws bedrock-agentcore start-browser-session [OPTIONS]
 
 | Option | Description | Default |
 |--------|-------------|---------|
-| `--browser-id` | Browser tool ID (use `aws.browser.v1` for managed) | Required |
-| `--session-name` | Human-readable session name | Auto-generated |
+| `--browser-identifier` | Browser tool ID (use `aws.browser.v1` for managed) | Required |
+| `--name` | Human-readable session name | Auto-generated |
 | `--session-timeout-seconds` | Session timeout (60-28800) | 900 (15 min) |
-| `--viewport-width` | Browser viewport width | 1920 |
-| `--viewport-height` | Browser viewport height | 1080 |
+| `--view-port` | Viewport dimensions as JSON (`{"width":1920,"height":1080}`) | None |
 
 **Examples:**
 
@@ -256,40 +257,39 @@ aws bedrock-agentcore start-browser-session [OPTIONS]
 # Start session with managed browser
 aws bedrock-agentcore start-browser-session \
     --region us-east-1 \
-    --browser-id aws.browser.v1 \
-    --session-name "web-research-session" \
+    --browser-identifier aws.browser.v1 \
+    --name "web-research-session" \
     --session-timeout-seconds 1800
 
 # Start session with custom viewport
 aws bedrock-agentcore start-browser-session \
     --region us-east-1 \
-    --browser-id br-abc123xyz \
-    --session-name "mobile-testing" \
-    --viewport-width 375 \
-    --viewport-height 812
+    --browser-identifier br-abc123xyz \
+    --name "mobile-testing" \
+    --view-port '{"width":375,"height":812}'
 
 # Start extended session (8 hours)
 aws bedrock-agentcore start-browser-session \
     --region us-east-1 \
-    --browser-id br-abc123xyz \
+    --browser-identifier br-abc123xyz \
     --session-timeout-seconds 28800
 ```
 
 ### get-browser-session
 
-Get session details including WebSocket URLs.
+Get session details including WebSocket stream endpoints.
 
 ```bash
 aws bedrock-agentcore get-browser-session \
     --region us-east-1 \
-    --browser-id <browser-id> \
+    --browser-identifier <browser-id> \
     --session-id <session-id>
 ```
 
 **Response includes:**
 - Session status (STARTING, ACTIVE, STOPPING, STOPPED)
-- Automation stream URL (WebSocket)
-- Live view stream URL (WebSocket)
+- `streams.automationStream.streamEndpoint` (WebSocket)
+- `streams.liveViewStream.streamEndpoint` (WebSocket)
 - Viewport dimensions
 - Creation and update timestamps
 
@@ -300,7 +300,7 @@ Stop an active browser session.
 ```bash
 aws bedrock-agentcore stop-browser-session \
     --region us-east-1 \
-    --browser-id <browser-id> \
+    --browser-identifier <browser-id> \
     --session-id <session-id>
 ```
 
@@ -311,7 +311,7 @@ List sessions for a browser tool.
 ```bash
 aws bedrock-agentcore list-browser-sessions \
     --region us-east-1 \
-    --browser-id <browser-id> \
+    --browser-identifier <browser-id> \
     --max-results 50
 ```
 
@@ -321,41 +321,37 @@ aws bedrock-agentcore list-browser-sessions \
 
 ### Using AgentCore SDK (Recommended)
 
-The high-level `BrowserClient` provides a simplified interface for browser operations.
+The high-level `BrowserClient` (`bedrock-agentcore` package, not the starter toolkit) provides a simplified interface for browser operations. The constructor takes `region` as a **positional** argument, not a `region_name` keyword.
 
 ```python
 from bedrock_agentcore.tools.browser_client import BrowserClient
 
 # Initialize client
-client = BrowserClient(region_name='us-east-1')
+client = BrowserClient("us-east-1")
 ```
 
-#### Start Session with Context Manager
+Automation and live-view WebSocket connections require SigV4-signed headers — you cannot connect to the stream endpoints with a bare URL. `generate_ws_headers()` produces both the URL and the signed headers together.
+
+#### Start Session with the `browser_session` Context Manager
 
 ```python
-from bedrock_agentcore.tools.browser_client import BrowserClient
+from bedrock_agentcore.tools.browser_client import browser_session
+from playwright.sync_api import sync_playwright
 
-async def browse_website():
-    client = BrowserClient(region_name='us-east-1')
+def browse_website():
+    # Context manager handles session lifecycle (start on enter, stop on exit)
+    with browser_session("us-east-1", identifier="aws.browser.v1", name="my-session") as client:
+        # Signed WebSocket URL + auth headers for Playwright
+        ws_url, headers = client.generate_ws_headers()
 
-    # Context manager handles session lifecycle
-    async with client.start_session(
-        browser_id='aws.browser.v1',
-        session_name='my-session',
-        timeout_seconds=1800,
-        viewport={'width': 1920, 'height': 1080}
-    ) as session:
-        # Get automation WebSocket URL
-        automation_url = session.automation_stream_url
+        with sync_playwright() as p:
+            browser = p.chromium.connect_over_cdp(ws_url, headers=headers)
+            page = browser.contexts[0].pages[0]
 
-        # Connect with Playwright
-        browser = await playwright.chromium.connect_over_cdp(automation_url)
-        page = browser.contexts[0].pages[0]
+            page.goto("https://example.com")
+            screenshot = page.screenshot()
 
-        await page.goto('https://example.com')
-        screenshot = await page.screenshot()
-
-        return screenshot
+            return screenshot
     # Session automatically stopped on exit
 ```
 
@@ -364,26 +360,21 @@ async def browse_website():
 ```python
 from bedrock_agentcore.tools.browser_client import BrowserClient
 
-client = BrowserClient(region_name='us-east-1')
+client = BrowserClient("us-east-1")
 
-# Start session
-session = client.start_browser_session(
-    browser_id='br-abc123xyz',
-    session_name='manual-session',
-    timeout_seconds=900
+# Start session (returns the session ID; identifier/name/timeout/viewport are optional)
+session_id = client.start(
+    identifier="br-abc123xyz",
+    name="manual-session",
+    session_timeout_seconds=900
 )
 
-session_id = session['sessionId']
-automation_url = session['automationStreamUrl']
-live_view_url = session['liveViewStreamUrl']
+ws_url, headers = client.generate_ws_headers()
 
 # ... perform browser operations ...
 
 # Stop session when done
-client.stop_browser_session(
-    browser_id='br-abc123xyz',
-    session_id=session_id
-)
+client.stop()
 ```
 
 #### Create Custom Browser
@@ -392,7 +383,7 @@ client.stop_browser_session(
 import uuid
 from bedrock_agentcore.tools.browser_client import BrowserClient
 
-client = BrowserClient(region_name='us-east-1')
+client = BrowserClient("us-east-1")
 
 # Create browser with recording
 browser = client.create_browser(
@@ -413,29 +404,21 @@ browser = client.create_browser(
 browser_id = browser['browserId']
 ```
 
-#### Live View Server
+#### Live View
+
+There is no local "viewer server." `generate_live_view_url()` returns a presigned URL you can open directly (or embed in an iframe) to watch the session live.
 
 ```python
 from bedrock_agentcore.tools.browser_client import BrowserClient
 
-async def start_live_view(browser_id: str, session_id: str, port: int = 8080):
-    """Start local server for live view."""
-    client = BrowserClient(region_name='us-east-1')
+def get_live_view(browser_id: str, session_id: str):
+    client = BrowserClient("us-east-1")
+    client.identifier = browser_id
+    client.session_id = session_id
 
-    session = client.get_browser_session(
-        browser_id=browser_id,
-        session_id=session_id
-    )
-
-    live_view_url = session['liveViewStreamUrl']
-
-    # Start viewer server
-    await client.start_viewer_server(
-        live_view_url=live_view_url,
-        port=port
-    )
-
-    print(f"Live view available at http://localhost:{port}")
+    live_view_url = client.generate_live_view_url(expires=300)  # seconds, max 300
+    print(f"Live view: {live_view_url}")
+    return live_view_url
 ```
 
 ### Using boto3 Directly
@@ -537,51 +520,50 @@ control_client.delete_browser(
 
 #### Data Plane APIs
 
+Data-plane session operations use `browserIdentifier`, not `browserId` — the field name differs from the control-plane resource APIs above. The returned `streamEndpoint` values require a SigV4-signed WebSocket connection; calling raw boto3 does not sign the connection for you (the `BrowserClient` SDK's `generate_ws_headers()` does this).
+
 ##### StartBrowserSession
 
 ```python
 response = data_client.start_browser_session(
-    browserId='br-abc123xyz',
-    sessionName='automation-session',
+    browserIdentifier='br-abc123xyz',
+    name='automation-session',
     sessionTimeoutSeconds=1800,
-    viewportWidth=1920,
-    viewportHeight=1080
+    viewPort={'width': 1920, 'height': 1080}
 )
 
 session_id = response['sessionId']
-automation_url = response['automationStreamUrl']
-live_view_url = response['liveViewStreamUrl']
+streams = response['streams']  # automationStream / liveViewStream, each with a streamEndpoint
 ```
 
 **Parameters:**
 
 | Parameter | Type | Required | Description |
 |-----------|------|----------|-------------|
-| `browserId` | string | Yes | Browser tool ID |
-| `sessionName` | string | No | Session name |
+| `browserIdentifier` | string | Yes | Browser tool ID |
+| `name` | string | No | Session name |
 | `sessionTimeoutSeconds` | int | No | Timeout (60-28800), default 900 |
-| `viewportWidth` | int | No | Viewport width, default 1920 |
-| `viewportHeight` | int | No | Viewport height, default 1080 |
+| `viewPort` | object | No | `{"width": int, "height": int}` |
 
 ##### GetBrowserSession
 
 ```python
 response = data_client.get_browser_session(
-    browserId='br-abc123xyz',
+    browserIdentifier='br-abc123xyz',
     sessionId='sess-xyz789'
 )
 
 status = response['status']  # STARTING, ACTIVE, STOPPING, STOPPED
-automation_url = response['automationStreamUrl']
-live_view_url = response['liveViewStreamUrl']
-viewport = response['viewport']
+automation_endpoint = response['streams']['automationStream']['streamEndpoint']
+live_view_endpoint = response['streams']['liveViewStream']['streamEndpoint']
+viewport = response['viewPort']
 ```
 
 ##### StopBrowserSession
 
 ```python
 data_client.stop_browser_session(
-    browserId='br-abc123xyz',
+    browserIdentifier='br-abc123xyz',
     sessionId='sess-xyz789'
 )
 ```
@@ -590,11 +572,11 @@ data_client.stop_browser_session(
 
 ```python
 response = data_client.list_browser_sessions(
-    browserId='br-abc123xyz',
+    browserIdentifier='br-abc123xyz',
     maxResults=50
 )
 
-for session in response['sessionSummaries']:
+for session in response['items']:
     print(f"{session['sessionId']}: {session['status']}")
 ```
 
@@ -609,8 +591,8 @@ The default system browser for quick setup without custom configuration.
 ```python
 # Use managed browser directly
 response = data_client.start_browser_session(
-    browserId='aws.browser.v1',
-    sessionName='quick-session'
+    browserIdentifier='aws.browser.v1',
+    name='quick-session'
 )
 ```
 
@@ -639,8 +621,10 @@ response = control_client.create_browser(
     description='Enterprise browser with recording and VPC',
     networkConfiguration={
         'networkMode': 'VPC',
-        'securityGroupIds': ['sg-12345678'],
-        'subnetIds': ['subnet-11111111', 'subnet-22222222']
+        'vpcConfig': {
+            'securityGroups': ['sg-12345678'],
+            'subnets': ['subnet-11111111', 'subnet-22222222']
+        }
     },
     recording={
         'enabled': True,
@@ -829,17 +813,6 @@ for action in recording['actions']:
     print(f"{action['timestamp']}: {action['type']} - {action.get('target', '')}")
 ```
 
-#### Standalone Replay Viewer
-
-```python
-# View recordings without creating new sessions
-python -m bedrock_agentcore.tools.browser_replay \
-    --bucket my-recordings-bucket \
-    --prefix sessions/2024 \
-    --session sess-abc123 \
-    --profile my-aws-profile
-```
-
 ---
 
 ## Code Examples
@@ -858,18 +831,20 @@ async def basic_browsing():
     client = boto3.client('bedrock-agentcore', region_name='us-east-1')
 
     session = client.start_browser_session(
-        browserId='aws.browser.v1',
-        sessionName='basic-browsing',
+        browserIdentifier='aws.browser.v1',
+        name='basic-browsing',
         sessionTimeoutSeconds=900
     )
 
-    automation_url = session['automationStreamUrl']
+    automation_endpoint = session['streams']['automationStream']['streamEndpoint']
     session_id = session['sessionId']
 
     try:
         async with async_playwright() as playwright:
-            # Connect to remote browser
-            browser = await playwright.chromium.connect_over_cdp(automation_url)
+            # Connect to remote browser (streamEndpoint requires a SigV4-signed
+            # connection; the BrowserClient SDK's generate_ws_headers() does this
+            # for you — see the SDK Reference section above)
+            browser = await playwright.chromium.connect_over_cdp(automation_endpoint)
             page = browser.contexts[0].pages[0]
 
             # Navigate and interact
@@ -892,7 +867,7 @@ async def basic_browsing():
     finally:
         # Stop session
         client.stop_browser_session(
-            browserId='aws.browser.v1',
+            browserIdentifier='aws.browser.v1',
             sessionId=session_id
         )
 
@@ -912,15 +887,15 @@ async def fill_form_example():
     client = boto3.client('bedrock-agentcore', region_name='us-east-1')
 
     session = client.start_browser_session(
-        browserId='aws.browser.v1',
-        sessionName='form-filling',
+        browserIdentifier='aws.browser.v1',
+        name='form-filling',
         sessionTimeoutSeconds=1800
     )
 
     try:
         async with async_playwright() as playwright:
             browser = await playwright.chromium.connect_over_cdp(
-                session['automationStreamUrl']
+                session['streams']['automationStream']['streamEndpoint']
             )
             page = browser.contexts[0].pages[0]
 
@@ -954,7 +929,7 @@ async def fill_form_example():
 
     finally:
         client.stop_browser_session(
-            browserId='aws.browser.v1',
+            browserIdentifier='aws.browser.v1',
             sessionId=session['sessionId']
         )
 
@@ -980,7 +955,7 @@ browser_tool = BrowserTool(
 )
 
 # Create agent with browser capabilities
-model = BedrockModel(model_id='anthropic.claude-sonnet-4-6')
+model = BedrockModel(model_id='us.anthropic.claude-haiku-4-5-20251001-v1:0')
 
 agent = Agent(
     model=model,
@@ -1025,17 +1000,16 @@ async def nova_act_example():
 
     # Start session with larger viewport for visual tasks
     session = client.start_browser_session(
-        browserId='aws.browser.v1',
-        sessionName='nova-act-session',
-        viewportWidth=1920,
-        viewportHeight=1080,
+        browserIdentifier='aws.browser.v1',
+        name='nova-act-session',
+        viewPort={'width': 1920, 'height': 1080},
         sessionTimeoutSeconds=1800
     )
 
     try:
         # Initialize Nova Act with session
         nova = NovaAct(
-            websocket_url=session['automationStreamUrl'],
+            websocket_url=session['streams']['automationStream']['streamEndpoint'],
             model_id='amazon.nova-pro-v1:0'
         )
 
@@ -1061,7 +1035,7 @@ async def nova_act_example():
 
     finally:
         client.stop_browser_session(
-            browserId='aws.browser.v1',
+            browserIdentifier='aws.browser.v1',
             sessionId=session['sessionId']
         )
 
@@ -1109,8 +1083,8 @@ async def recorded_session_example():
 
     # Start recorded session
     session = data_client.start_browser_session(
-        browserId=browser_id,
-        sessionName='recorded-demo',
+        browserIdentifier=browser_id,
+        name='recorded-demo',
         sessionTimeoutSeconds=900
     )
 
@@ -1119,7 +1093,7 @@ async def recorded_session_example():
     try:
         async with async_playwright() as playwright:
             browser = await playwright.chromium.connect_over_cdp(
-                session['automationStreamUrl']
+                session['streams']['automationStream']['streamEndpoint']
             )
             page = browser.contexts[0].pages[0]
 
@@ -1145,7 +1119,7 @@ async def recorded_session_example():
     finally:
         # Stop session (triggers recording upload)
         data_client.stop_browser_session(
-            browserId=browser_id,
+            browserIdentifier=browser_id,
             sessionId=session_id
         )
 
@@ -1165,28 +1139,24 @@ Deploy browser-enabled agents to AgentCore Runtime for scalable execution.
 
 ```python
 from bedrock_agentcore.runtime import BedrockAgentCoreApp
-from bedrock_agentcore.tools.browser_client import BrowserClient
+from bedrock_agentcore.tools.browser_client import browser_session
 from playwright.async_api import async_playwright
 
 app = BedrockAgentCoreApp()
 
-@app.entrypoint()
+@app.entrypoint
 async def web_research_agent(request):
     """Agent that performs web research."""
 
     query = request.get('query')
 
-    browser_client = BrowserClient(region_name='us-east-1')
-
-    async with browser_client.start_session(
-        browser_id='aws.browser.v1',
-        timeout_seconds=1800
-    ) as session:
+    # browser_session is a synchronous context manager; that's fine inside
+    # an async entrypoint since starting/stopping the session are boto3 calls.
+    with browser_session("us-east-1", identifier='aws.browser.v1') as client:
+        ws_url, headers = client.generate_ws_headers()
 
         async with async_playwright() as playwright:
-            browser = await playwright.chromium.connect_over_cdp(
-                session.automation_stream_url
-            )
+            browser = await playwright.chromium.connect_over_cdp(ws_url, headers=headers)
             page = browser.contexts[0].pages[0]
 
             # Search Google
@@ -1216,12 +1186,11 @@ if __name__ == '__main__':
 
 **Deploy to Runtime:**
 
+Agent name, entrypoint, memory, and timeout come from `agentcore configure` (or the generated `.bedrock_agentcore.yaml`), not from flags on `deploy` — `agentcore deploy` itself only takes `--agent`, `--local`, `--local-build`, `--image-tag`, `--auto-update-on-conflict`, `--force-rebuild-deps`, and `--env`.
+
 ```bash
-agentcore deploy \
-    --name web-research-agent \
-    --entrypoint agent.py \
-    --memory 2048 \
-    --timeout 1800
+agentcore configure -e agent.py --name web-research-agent
+agentcore deploy
 ```
 
 ### With AgentCore Gateway
@@ -1230,7 +1199,7 @@ Expose browser actions as MCP tools through Gateway.
 
 ```python
 import json
-from bedrock_agentcore.tools.browser_client import BrowserClient
+from bedrock_agentcore.tools.browser_client import browser_session
 from playwright.async_api import async_playwright
 
 def lambda_handler(event, context):
@@ -1256,16 +1225,11 @@ def browse_url(url: str) -> dict:
     import asyncio
 
     async def _browse():
-        client = BrowserClient(region_name='us-east-1')
+        with browser_session("us-east-1", identifier='aws.browser.v1', name='gateway-browse') as client:
+            ws_url, headers = client.generate_ws_headers()
 
-        async with client.start_session(
-            browser_id='aws.browser.v1',
-            timeout_seconds=300
-        ) as session:
             async with async_playwright() as playwright:
-                browser = await playwright.chromium.connect_over_cdp(
-                    session.automation_stream_url
-                )
+                browser = await playwright.chromium.connect_over_cdp(ws_url, headers=headers)
                 page = browser.contexts[0].pages[0]
 
                 await page.goto(url)
@@ -1289,50 +1253,54 @@ def browse_url(url: str) -> dict:
 
 **Register as Gateway Target:**
 
+The field is `gatewayIdentifier`, not `gatewayId`, and Lambda targets nest under `targetConfiguration.mcp.lambda` (not a top-level `lambdaTargetConfiguration`); tool definitions go in `toolSchema.inlinePayload`, not `toolSchema.tools`.
+
 ```python
 control_client.create_gateway_target(
-    gatewayId='gw-abc123',
+    gatewayIdentifier='gw-abc123',
     name='BrowserTools',
     targetConfiguration={
-        'lambdaTargetConfiguration': {
-            'lambdaArn': 'arn:aws:lambda:us-east-1:123456789012:function:BrowserTools',
-            'toolSchema': {
-                'tools': [
-                    {
-                        'name': 'browse_url',
-                        'description': 'Navigate to a URL and return page content',
-                        'inputSchema': {
-                            'type': 'object',
-                            'properties': {
-                                'url': {'type': 'string', 'description': 'URL to browse'}
-                            },
-                            'required': ['url']
+        'mcp': {
+            'lambda': {
+                'lambdaArn': 'arn:aws:lambda:us-east-1:123456789012:function:BrowserTools',
+                'toolSchema': {
+                    'inlinePayload': [
+                        {
+                            'name': 'browse_url',
+                            'description': 'Navigate to a URL and return page content',
+                            'inputSchema': {
+                                'type': 'object',
+                                'properties': {
+                                    'url': {'type': 'string', 'description': 'URL to browse'}
+                                },
+                                'required': ['url']
+                            }
+                        },
+                        {
+                            'name': 'take_screenshot',
+                            'description': 'Take a screenshot of a webpage',
+                            'inputSchema': {
+                                'type': 'object',
+                                'properties': {
+                                    'url': {'type': 'string', 'description': 'URL to screenshot'}
+                                },
+                                'required': ['url']
+                            }
+                        },
+                        {
+                            'name': 'extract_text',
+                            'description': 'Extract text from a webpage element',
+                            'inputSchema': {
+                                'type': 'object',
+                                'properties': {
+                                    'url': {'type': 'string', 'description': 'URL to extract from'},
+                                    'selector': {'type': 'string', 'description': 'CSS selector'}
+                                },
+                                'required': ['url']
+                            }
                         }
-                    },
-                    {
-                        'name': 'take_screenshot',
-                        'description': 'Take a screenshot of a webpage',
-                        'inputSchema': {
-                            'type': 'object',
-                            'properties': {
-                                'url': {'type': 'string', 'description': 'URL to screenshot'}
-                            },
-                            'required': ['url']
-                        }
-                    },
-                    {
-                        'name': 'extract_text',
-                        'description': 'Extract text from a webpage element',
-                        'inputSchema': {
-                            'type': 'object',
-                            'properties': {
-                                'url': {'type': 'string', 'description': 'URL to extract from'},
-                                'selector': {'type': 'string', 'description': 'CSS selector'}
-                            },
-                            'required': ['url']
-                        }
-                    }
-                ]
+                    ]
+                }
             }
         }
     }
@@ -1343,7 +1311,7 @@ control_client.create_gateway_target(
 
 ## Best Practices
 
-1. **Use context managers** - Always use `async with` for sessions to ensure proper cleanup, even on errors.
+1. **Use context managers** - Prefer the `browser_session()` context manager (or a `try`/`finally` around `start()`/`stop()`) to ensure proper cleanup, even on errors.
 
 2. **Set appropriate timeouts** - Configure session timeout based on task complexity. Start with 15 minutes and extend only if needed.
 
@@ -1378,24 +1346,24 @@ control_client.create_gateway_target(
 | `RecordingUploadFailed` | S3 permissions issue | Verify execution role has S3 write access |
 | `ViewportError` | Invalid viewport dimensions | Use standard dimensions (1920x1080) |
 | `BrowserCreationFailed` | IAM or configuration error | Check execution role and network config |
-| `ConcurrentSessionLimit` | Too many active sessions | Stop unused sessions (max 500) |
+| `ConcurrentSessionLimit` | Too many active sessions | Stop unused sessions (max 1,000) |
 
 ### Debugging Tips
 
 ```bash
-# Check browser status
+# Check browser status (control plane: --browser-id)
 aws bedrock-agentcore-control get-browser \
     --browser-id br-abc123 \
     --region us-east-1
 
-# List active sessions
+# List active sessions (data plane: --browser-identifier)
 aws bedrock-agentcore list-browser-sessions \
-    --browser-id br-abc123 \
+    --browser-identifier br-abc123 \
     --region us-east-1
 
-# Get session details
+# Get session details (data plane: --browser-identifier)
 aws bedrock-agentcore get-browser-session \
-    --browser-id br-abc123 \
+    --browser-identifier br-abc123 \
     --session-id sess-xyz789 \
     --region us-east-1
 
@@ -1432,7 +1400,7 @@ aws logs tail /aws/bedrock-agentcore/browser/br-abc123 --follow
 | Resource | Default Limit | Adjustable |
 |----------|--------------|------------|
 | Browser tools per account | 100 | Yes |
-| Concurrent sessions per account | 500 | Yes |
+| Concurrent sessions per account | 1,000 | Yes |
 | Concurrent sessions per browser | 100 | Yes |
 | Session timeout minimum | 60 seconds | No |
 | Session timeout maximum | 28800 seconds (8 hours) | No |

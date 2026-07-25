@@ -2,7 +2,7 @@
 
 ## Executive Summary
 
-Amazon Bedrock AgentCore is a comprehensive agentic platform designed to help developers build, deploy, and operate AI agents securely at enterprise scale. Unlike traditional approaches that force a choice between open-source flexibility and enterprise-grade security, AgentCore delivers both through a modular architecture of nine interconnected services.
+Amazon Bedrock AgentCore is a comprehensive agentic platform designed to help developers build, deploy, and operate AI agents securely at enterprise scale. Unlike traditional approaches that force a choice between open-source flexibility and enterprise-grade security, AgentCore delivers both through a modular architecture of interconnected services - Runtime, Memory, Gateway, Identity, Code Interpreter, Browser, Observability, Evaluations, and Policy, plus the newer Harness, Registry, and Payments capabilities (see "Status and Roadmap" below for what's GA vs. Preview).
 
 ### What is AgentCore?
 
@@ -30,7 +30,7 @@ AgentCore is designed for:
 
 **Model Agnostic**: Use models from Amazon Bedrock (Claude, Nova, Llama, Mistral), OpenAI, Google Gemini, or any other provider. AgentCore does not dictate your model choices.
 
-**Modular Architecture**: Each of the nine services can be used independently or together. Start with Runtime, add Memory when needed, integrate Gateway as your tool requirements grow.
+**Modular Architecture**: Each service can be used independently or together. Start with Runtime, add Memory when needed, integrate Gateway as your tool requirements grow.
 
 **Consumption-Based Pricing**: Pay only for actual resource consumption. During I/O wait periods (which can be 30-70% of agent execution time), CPU charges are eliminated. No pre-allocated resources, no idle costs.
 
@@ -418,7 +418,7 @@ AgentCore Evaluations provides purpose-built evaluation tools to measure how wel
 - Identifying quality regressions after changes
 - Building confidence in agent reliability
 
-**Note**: Evaluations is currently in Preview with no additional charges.
+**Note**: Evaluations reached General Availability on March 31, 2026, and is billed based on input/output tokens processed during evaluation.
 
 ---
 
@@ -457,7 +457,7 @@ AgentCore Policy enables developers to define and enforce security controls for 
 - Business rules must be enforced consistently across all agents
 - You need audit trails for all agent-to-tool interactions
 
-**Note**: Policy is currently in Preview with no additional charges.
+**Note**: Policy reached General Availability on March 3, 2026, and is billed per million user input tokens processed for authorization requests.
 
 ---
 
@@ -859,14 +859,9 @@ Organizations in regulated industries should review specific compliance requirem
 
 ### Available Regions
 
-| Region | Code | Runtime | Memory | Gateway | Identity | Code Interpreter | Browser | Observability | Evaluations | Policy |
-|--------|------|---------|--------|---------|----------|-----------------|---------|---------------|-------------|--------|
-| US East (N. Virginia) | us-east-1 | Yes | Yes | Yes | Yes | Yes | Yes | Yes | Preview | Preview |
-| US West (Oregon) | us-west-2 | Yes | Yes | Yes | Yes | Yes | Yes | Yes | Preview | Preview |
-| Asia Pacific (Sydney) | ap-southeast-2 | Yes | Yes | Yes | Yes | Yes | Yes | Yes | Preview | Preview |
-| Europe (Frankfurt) | eu-central-1 | Yes | Yes | Yes | Yes | Yes | Yes | Yes | Preview | Preview |
+Regional availability varies by feature and changes over time, so this doc does not hardcode a full region table. For the current, authoritative feature-by-region matrix see the [AgentCore Supported AWS Regions](https://docs.aws.amazon.com/bedrock-agentcore/latest/devguide/agentcore-regions.html) page.
 
-**Note**: AgentCore is now generally available with additional regions announced. Check the AWS documentation for the latest availability.
+Commonly used regions for Runtime/Memory/Gateway/Identity: US East (N. Virginia, `us-east-1`), US East (Ohio, `us-east-2`), US West (Oregon, `us-west-2`), Europe (Frankfurt, `eu-central-1`), Asia Pacific (Sydney, `ap-southeast-2`). Not every service is available in every region - Evaluations, Policy, and the newer Harness/Registry/Payments capabilities are checked in narrower subsets than Runtime/Gateway/Identity/Observability. Verify the specific service and region combination you need against the live page above before depending on it.
 
 ### Region Selection Considerations
 
@@ -896,8 +891,8 @@ AgentCore uses consumption-based pricing with no upfront commitments or minimum 
 | **Identity** | Per credential request (free through Runtime/Gateway) |
 | **Memory** | Per event (short-term) + per memory record (long-term) |
 | **Observability** | CloudWatch pricing for logs and metrics |
-| **Evaluations** | Preview (no charge) |
-| **Policy** | Preview (no charge) |
+| **Evaluations** | Per input/output token processed during evaluation (GA since March 31, 2026) |
+| **Policy** | Per million user input tokens processed for authorization requests (GA since March 3, 2026) |
 
 ### Free Tier
 
@@ -925,27 +920,28 @@ New AWS customers receive up to $200 in Free Tier credits for AgentCore.
 
 1. **Install AgentCore SDK**:
    ```bash
-   pip install amazon-bedrock-agentcore
+   pip install bedrock-agentcore
    ```
 
 2. **Install AgentCore Starter Toolkit**:
    ```bash
-   pip install agentcore-starter-toolkit
+   pip install bedrock-agentcore-starter-toolkit
    ```
+   The starter toolkit's own CLI now recommends `npm install -g @aws/agentcore` for new projects (see [AgentCore Runtime](./01-runtime.md#installation)); this quick start uses the Python toolkit since that's what ships today.
 
 3. **Create your first agent**:
    ```bash
-   agentcore create my-first-agent
+   agentcore create --project-name my-first-agent
    ```
 
 4. **Deploy to AgentCore**:
    ```bash
-   agentcore deploy my-first-agent
+   agentcore deploy
    ```
 
-5. **Invoke your agent**:
+5. **Invoke your agent** (JSON payload, not a bare string):
    ```bash
-   agentcore invoke my-first-agent "Hello, agent!"
+   agentcore invoke '{"prompt": "Hello, agent!"}'
    ```
 
 ### Development Interfaces
@@ -1026,23 +1022,28 @@ New AWS customers receive up to $200 in Free Tier credits for AgentCore.
 
 ## Status and Roadmap
 
-### Current Status (As of 2025)
+### Current Status (as of 2026-07-25)
 
-- **Generally Available**: Runtime, Memory, Gateway, Identity, Code Interpreter, Browser, Observability
-- **Preview**: Evaluations, Policy
+- **Generally Available**: Runtime, Memory, Gateway, Identity, Code Interpreter, Browser, Observability, Evaluations (since March 31, 2026), Policy (since March 3, 2026), Harness
+- **Preview**: Registry (scheduled for GA August 6, 2026), Payments
+
+Harness (managed multi-turn agent hosting), Registry (discover/manage agents, tools, and resources), and Payments (agent-initiated payment authorization) are newer capabilities layered on top of the original service set above; Harness and Registry are boto3-only today (no dedicated Python SDK submodule), while Payments has its own `bedrock_agentcore.payments` submodule. See each service's own devguide page for details - they are not covered as separate deep-dive sections in this doc.
+
+There is no "Optimization" service - AWS's optimization *capabilities* (batch evaluation, A/B testing, recommendations) are real and documented, but they are implemented as operations under other API namespaces (e.g. `StartBatchEvaluation`, `CreateABTest`), not as a standalone `Optimization` API.
 
 ### Recent Announcements
 
-- General availability with VPC support
+- Evaluations and Policy reached General Availability
 - A2A protocol support
-- Expanded regional availability
+- AG-UI protocol support (agent-to-frontend UI streaming)
 - MCP server connectivity
 - Identity-aware authorization enhancements
+- New optimization capabilities (batch evaluation, A/B testing, recommendations - GA; Insights - Preview)
 
 ### Known Limitations
 
-- Policy and Evaluations are in Preview (no charges during preview)
-- Regional availability varies; check documentation for latest
+- Registry and Payments are in Preview
+- Regional availability varies by service; check the [Supported AWS Regions](https://docs.aws.amazon.com/bedrock-agentcore/latest/devguide/agentcore-regions.html) page for the current matrix
 - Some framework integrations are more mature than others
 
 ---

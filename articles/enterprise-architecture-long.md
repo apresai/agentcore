@@ -82,7 +82,7 @@ Every agent, regardless of team or framework, connects to the same Gateway for t
 boto3>=1.34.0
 strands-agents>=0.1.0
 bedrock-agentcore>=1.0.0
-python-dotenv>=1.0.0
+bedrock-agentcore-starter-toolkit>=0.1.0
 ```
 
 ### Installation
@@ -91,7 +91,6 @@ python-dotenv>=1.0.0
 python -m venv venv
 source venv/bin/activate
 pip install -r requirements.txt
-pip install bedrock-agentcore-starter-toolkit
 ```
 
 ## Getting Started
@@ -216,14 +215,14 @@ def create_enterprise_gateway(
         roleArn=role_arn,
         authorizerType="CUSTOM_JWT",
         authorizerConfiguration={
-            "customJwtAuthorizerConfig": {
+            "customJWTAuthorizer": {
                 "discoveryUrl": idp_discovery_url,
-                "allowedAudiences": allowed_audiences,
+                "allowedAudience": allowed_audiences,
                 "allowedClients": allowed_clients,
             }
         },
         protocolType="MCP",
-        searchConfiguration={"searchType": "SEMANTIC"},
+        protocolConfiguration={"mcp": {"searchType": "SEMANTIC"}},
         tags={
             "Platform": "enterprise-agents",
             "Environment": "production",
@@ -235,22 +234,22 @@ def create_enterprise_gateway(
     gateway_arn = response["gatewayArn"]
     print(f"Gateway created: {gateway_id}")
 
-    # Wait for ACTIVE status
+    # Wait for READY status
     for attempt in range(60):
         status_response = control.get_gateway(gatewayIdentifier=gateway_id)
         status = status_response["status"]
-        if status == "ACTIVE":
-            print(f"Gateway is ACTIVE")
+        if status == "READY":
+            print(f"Gateway is READY")
             return {
                 "gatewayId": gateway_id,
                 "gatewayArn": gateway_arn,
                 "status": status,
             }
-        if status in ("FAILED", "CREATE_FAILED"):
+        if status == "FAILED":
             raise RuntimeError(f"Gateway creation failed: {status}")
         time.sleep(5)
 
-    raise TimeoutError("Gateway did not become ACTIVE within timeout")
+    raise TimeoutError("Gateway did not become READY within timeout")
 
 
 # Example: Configure with Okta as the enterprise IdP
@@ -278,9 +277,11 @@ def add_lambda_target(gateway_id: str, target_name: str, lambda_arn: str, tools:
         gatewayIdentifier=gateway_id,
         name=target_name,
         targetConfiguration={
-            "lambdaTargetConfiguration": {
-                "lambdaArn": lambda_arn,
-                "toolSchema": {"tools": tools},
+            "mcp": {
+                "lambda": {
+                    "lambdaArn": lambda_arn,
+                    "toolSchema": {"inlinePayload": tools},
+                }
             }
         },
     )
@@ -293,31 +294,27 @@ def add_openapi_target(
     target_name: str,
     spec_bucket: str,
     spec_key: str,
-    endpoint_url: str,
-    credential_provider_arn: str = None,
 ) -> dict:
-    """Add an OpenAPI-backed tool target to the enterprise gateway."""
+    """Add an OpenAPI-backed tool target to the enterprise gateway.
+
+    The server URL comes from the spec's own `servers:` block, not a
+    separate endpoint parameter -- Gateway reads the OpenAPI document
+    directly from S3.
+    """
     target_config = {
-        "openApiTargetConfiguration": {
-            "openApiSpecificationS3Location": {
-                "bucket": spec_bucket,
-                "key": spec_key,
-            },
-            "endpointConfiguration": {"url": endpoint_url},
+        "mcp": {
+            "openApiSchema": {
+                "s3": {"uri": f"s3://{spec_bucket}/{spec_key}"}
+            }
         }
     }
-
-    if credential_provider_arn:
-        target_config["openApiTargetConfiguration"][
-            "credentialProviderArn"
-        ] = credential_provider_arn
 
     response = control.create_gateway_target(
         gatewayIdentifier=gateway_id,
         name=target_name,
         targetConfiguration=target_config,
     )
-    print(f"Target added: {target_name} -> {endpoint_url}")
+    print(f"Target added: {target_name} -> s3://{spec_bucket}/{spec_key}")
     return response
 
 
@@ -455,7 +452,6 @@ add_openapi_target(
     target_name="InternalAPIs",
     spec_bucket="enterprise-agent-specs",
     spec_key="internal-api-v2.yaml",
-    endpoint_url="https://api.internal.example.com/v2",
 )
 
 # --- Register communication tools (Slack via Lambda) ---
@@ -502,43 +498,30 @@ print("Targets: CRMTools, TicketingTools, InternalAPIs, CommsTools")
 
 Once targets are registered, any authorized agent can discover available tools through the MCP protocol.
 
+There is no boto3 "invoke gateway" or "search gateway tools" call -- Gateway is itself an MCP server. Discovery and invocation both happen over the Model Context Protocol at the gateway's endpoint, authenticated with a bearer token from your IdP (this gateway uses `CUSTOM_JWT`). Semantic search, enabled at creation time above, ranks the results whenever a client lists tools.
+
 ```python
-def list_gateway_tools(gateway_id: str) -> list:
+from strands.tools.mcp import MCPClient
+from mcp.client.streamable_http import streamablehttp_client
+
+
+def list_gateway_tools(gateway_id: str, bearer_token: str) -> list:
     """List all tools available through the enterprise gateway."""
-    response = data.invoke_gateway(
-        gatewayIdentifier=gateway_id,
-        method="tools/list",
-        payload=json.dumps({}).encode(),
+    gateway_url = control.get_gateway(gatewayIdentifier=gateway_id)["gatewayUrl"]
+    mcp_client = MCPClient(
+        lambda: streamablehttp_client(gateway_url, headers={"Authorization": f"Bearer {bearer_token}"})
     )
-    result = json.loads(response["payload"].read())
-    tools = result.get("tools", [])
-    print(f"Available tools ({len(tools)}):")
-    for tool in tools:
-        print(f"  - {tool['name']}: {tool.get('description', 'N/A')}")
-    return tools
+    with mcp_client:
+        tools = mcp_client.list_tools_sync()
+        print(f"Available tools ({len(tools)}):")
+        for tool in tools:
+            print(f"  - {tool.tool_name}")
+        return tools
 
 
-def search_gateway_tools(gateway_id: str, query: str, max_results: int = 5) -> list:
-    """Semantic search for tools matching a natural language query."""
-    response = data.search_gateway_tools(
-        gatewayIdentifier=gateway_id,
-        query=query,
-        maxResults=max_results,
-    )
-    tools = response.get("tools", [])
-    print(f"Search results for '{query}':")
-    for tool in tools:
-        print(f"  - {tool['name']} (score: {tool.get('relevanceScore', 'N/A')})")
-    return tools
-
-
-# List all enterprise tools
-all_tools = list_gateway_tools(GATEWAY_ID)
-
-# Semantic search -- agent asks "how do I create a support ticket?"
-relevant_tools = search_gateway_tools(
-    GATEWAY_ID, "create a support ticket for a customer issue"
-)
+# List all enterprise tools (semantic ranking applies automatically when the
+# gateway's search is enabled -- there is no separate "search" call)
+all_tools = list_gateway_tools(GATEWAY_ID, bearer_token="<JWT from your IdP>")
 ```
 
 ### Multi-Tenant Gateway Architecture
@@ -600,14 +583,14 @@ def create_tenant_gateway(
         roleArn=role_arn,
         authorizerType="CUSTOM_JWT",
         authorizerConfiguration={
-            "customJwtAuthorizerConfig": {
+            "customJWTAuthorizer": {
                 "discoveryUrl": idp_discovery_url,
-                "allowedAudiences": allowed_audiences,
+                "allowedAudience": allowed_audiences,
                 "allowedClients": allowed_clients,
             }
         },
         protocolType="MCP",
-        searchConfiguration={"searchType": "SEMANTIC"},
+        protocolConfiguration={"mcp": {"searchType": "SEMANTIC"}},
         tags={
             "Platform": "enterprise-agents",
             "TenantId": tenant_id,
@@ -617,10 +600,10 @@ def create_tenant_gateway(
 
     gateway_id = response["gatewayId"]
 
-    # Wait for ACTIVE
+    # Wait for READY
     for attempt in range(60):
         status_response = control.get_gateway(gatewayIdentifier=gateway_id)
-        if status_response["status"] == "ACTIVE":
+        if status_response["status"] == "READY":
             break
         time.sleep(5)
 
@@ -652,17 +635,17 @@ class TenantGatewayRegistry:
             raise ValueError(f"No gateway registered for tenant: {tenant_id}")
         return tenant["gatewayId"]
 
-    def call_tool(self, tenant_id: str, tool_name: str, arguments: dict) -> dict:
-        """Call a tool through the correct tenant gateway."""
+    def call_tool(self, tenant_id: str, tool_name: str, arguments: dict, bearer_token: str) -> dict:
+        """Call a tool through the correct tenant gateway over MCP."""
         gateway_id = self.get_gateway_id(tenant_id)
-        response = data.invoke_gateway(
-            gatewayIdentifier=gateway_id,
-            method="tools/call",
-            payload=json.dumps(
-                {"name": tool_name, "arguments": arguments}
-            ).encode(),
+        gateway_url = control.get_gateway(gatewayIdentifier=gateway_id)["gatewayUrl"]
+        mcp_client = MCPClient(
+            lambda: streamablehttp_client(gateway_url, headers={"Authorization": f"Bearer {bearer_token}"})
         )
-        return json.loads(response["payload"].read())
+        with mcp_client:
+            result = mcp_client.call_tool_sync(
+                tool_use_id=f"{tool_name}-call", name=tool_name, arguments=arguments)
+        return {"result": str(result)}
 
 
 # Usage
@@ -758,10 +741,9 @@ customer_memory = create_platform_memory(
             }
         },
         {
-            "sessionSummaryMemoryStrategy": {
+            "summaryMemoryStrategy": {
                 "name": "InteractionSummaries",
                 "namespaces": ["summaries"],
-                "maxRecentSessions": 20,
             }
         },
     ],
@@ -776,10 +758,9 @@ handoff_memory = create_platform_memory(
     description="Shared context for agent-to-agent handoffs",
     strategies=[
         {
-            "sessionSummaryMemoryStrategy": {
+            "summaryMemoryStrategy": {
                 "name": "HandoffSummaries",
                 "namespaces": ["handoffs"],
-                "maxRecentSessions": 50,
             }
         },
     ],
@@ -862,7 +843,7 @@ class PlatformMemoryManager:
             "searchCriteria": {"searchQuery": query, "topK": max_results},
         }
         response = self.data.retrieve_memory_records(**kwargs)
-        records = response.get("memoryRecords", [])
+        records = response.get("memoryRecordSummaries", [])
         return [
             {"content": r["content"]["text"], "score": r.get("score", 0)}
             for r in records
@@ -873,7 +854,7 @@ class PlatformMemoryManager:
     ) -> list:
         """Get short-term conversation history for a session."""
         memory_id = self.stores[store_name]
-        response = self.data.get_events(
+        response = self.data.list_events(
             memoryId=memory_id,
             actorId=actor_id,
             sessionId=session_id,
@@ -899,7 +880,7 @@ class PlatformMemoryManager:
             payload=[
                 {
                     "conversational": {
-                        "role": "SYSTEM",
+                        "role": "OTHER",
                         "content": {
                             "text": json.dumps(
                                 {
@@ -1040,8 +1021,8 @@ POLICY_ENGINE_ARN = engine["policyEngineArn"]
 control.update_gateway(
     gatewayIdentifier=GATEWAY_ID,
     policyEngineConfiguration={
-        "policyEngineArn": POLICY_ENGINE_ARN,
-        "enforcementMode": "ENFORCE",
+        "arn": POLICY_ENGINE_ARN,
+        "mode": "ENFORCE",
     },
 )
 print(f"Policy engine attached to gateway {GATEWAY_ID} in ENFORCE mode")
@@ -1211,8 +1192,8 @@ def generate_policy_from_natural_language(
     response = control.start_policy_generation(
         policyEngineId=engine_id,
         name=name,
-        content={"text": description},
-        resource={"gateway": {"gatewayArn": gateway_arn}},
+        content={"rawText": description},
+        resource={"arn": gateway_arn},
     )
 
     generation_id = response["policyGenerationId"]
@@ -1227,11 +1208,19 @@ def generate_policy_from_natural_language(
         status = result["status"]
 
         if status == "GENERATED":
-            policies = result.get("generatedPolicies", [])
+            # The generated Cedar lives in the assets, not on the generation itself
+            assets = control.list_policy_generation_assets(
+                policyEngineId=engine_id,
+                policyGenerationId=generation_id,
+            )
+            policies = [
+                a["definition"]["cedar"]["statement"]
+                for a in assets.get("policyGenerationAssets", [])
+            ]
             print(f"Generated {len(policies)} policy option(s):")
-            for i, policy in enumerate(policies):
+            for i, statement in enumerate(policies):
                 print(f"\n  Option {i + 1}:")
-                print(f"  {policy['statement']}")
+                print(f"  {statement}")
             return policies
 
         if status == "GENERATE_FAILED":
@@ -1261,7 +1250,7 @@ if generated:
         policyEngineId=POLICY_ENGINE_ID,
         name="intern_readonly_policy",
         description="Intern role: read-only access to CRM and tickets",
-        definition={"cedar": {"statement": generated[0]["statement"]}},
+        definition={"cedar": {"statement": generated[0]}},
     )
     print("Generated policy created successfully")
 ```
@@ -1324,9 +1313,9 @@ def configure_okta_inbound(
         audience: Expected audience claim in the JWT
     """
     config = {
-        "customJwtAuthorizerConfig": {
+        "customJWTAuthorizer": {
             "discoveryUrl": f"{okta_org_url}/.well-known/openid-configuration",
-            "allowedAudiences": [audience],
+            "allowedAudience": [audience],
             "allowedClients": [client_id],
         }
     }
@@ -1347,12 +1336,12 @@ def configure_entra_id_inbound(
         audience: Expected audience claim (usually api://your-app-id)
     """
     config = {
-        "customJwtAuthorizerConfig": {
+        "customJWTAuthorizer": {
             "discoveryUrl": (
                 f"https://login.microsoftonline.com/{tenant_id}"
                 "/v2.0/.well-known/openid-configuration"
             ),
-            "allowedAudiences": [audience],
+            "allowedAudience": [audience],
             "allowedClients": [client_id],
         }
     }
@@ -1380,6 +1369,16 @@ entra_config = configure_entra_id_inbound(
 Agents need credentials to access downstream services on behalf of users. AgentCore Identity stores and manages these credentials securely.
 
 ```python
+# Vendor-specific config block names -- each OAuth2 vendor enum value
+# (SalesforceOauth2, SlackOauth2, ...) has a matching config block; there is
+# no single generic block that works for every named vendor.
+VENDOR_CONFIG_KEYS = {
+    "SalesforceOauth2": "salesforceOauth2ProviderConfig",
+    "SlackOauth2": "slackOauth2ProviderConfig",
+    "GoogleOauth2": "googleOauth2ProviderConfig",
+    "GithubOauth2": "githubOauth2ProviderConfig",
+}
+
 def create_oauth2_credential_provider(
     name: str,
     vendor: str,
@@ -1388,31 +1387,34 @@ def create_oauth2_credential_provider(
     custom_config: dict = None,
 ) -> dict:
     """Create an OAuth2 credential provider for outbound service access."""
-    kwargs = {
-        "name": name,
-        "credentialProviderVendor": vendor,
-    }
-
     if vendor == "CustomOauth2" and custom_config:
-        kwargs["oauth2ProviderConfigInput"] = {
+        oauth2_config = {
             "customOauth2ProviderConfig": {
                 "clientId": client_id,
                 "clientSecret": client_secret,
-                "authorizeEndpoint": custom_config["authorize_url"],
-                "tokenEndpoint": custom_config["token_url"],
-                "issuer": custom_config["issuer"],
-                "scopes": custom_config.get("scopes", []),
+                "oauthDiscovery": {
+                    "authorizationServerMetadata": {
+                        "issuer": custom_config["issuer"],
+                        "authorizationEndpoint": custom_config["authorize_url"],
+                        "tokenEndpoint": custom_config["token_url"],
+                    }
+                },
             }
         }
     else:
-        kwargs["oauth2ProviderConfigInput"] = {
-            "includedOauth2ProviderConfig": {
+        config_key = VENDOR_CONFIG_KEYS[vendor]
+        oauth2_config = {
+            config_key: {
                 "clientId": client_id,
                 "clientSecret": client_secret,
             }
         }
 
-    response = control.create_credential_provider(**kwargs)
+    response = control.create_oauth2_credential_provider(
+        name=name,
+        credentialProviderVendor=vendor,
+        oauth2ProviderConfigInput=oauth2_config,
+    )
     provider_arn = response["credentialProviderArn"]
     print(f"Credential provider created: {name} -> {provider_arn}")
     return {"name": name, "arn": provider_arn}
@@ -1420,10 +1422,9 @@ def create_oauth2_credential_provider(
 
 def create_api_key_provider(name: str, api_key: str) -> dict:
     """Create an API key credential provider."""
-    response = control.create_credential_provider(
+    response = control.create_api_key_credential_provider(
         name=name,
-        credentialProviderVendor="ApiKey",
-        apiKeyProviderConfigInput={"apiKey": api_key},
+        apiKey=api_key,
     )
     provider_arn = response["credentialProviderArn"]
     print(f"API key provider created: {name} -> {provider_arn}")
@@ -1462,7 +1463,6 @@ internal_provider = create_oauth2_credential_provider(
         "authorize_url": "https://auth.internal.example.com/oauth/authorize",
         "token_url": "https://auth.internal.example.com/oauth/token",
         "issuer": "https://auth.internal.example.com",
-        "scopes": ["read", "write"],
     },
 )
 ```
@@ -1480,44 +1480,47 @@ class PlatformIdentityManager:
         self.control = control_client
         self.providers = {}
 
-    def register_provider(self, service_name: str, provider_arn: str):
-        """Register a credential provider for a downstream service."""
-        self.providers[service_name] = provider_arn
+    def register_provider(self, service_name: str, provider_name: str):
+        """Register a credential provider for a downstream service.
+
+        The data-plane token APIs address providers by name, not ARN.
+        """
+        self.providers[service_name] = provider_name
 
     def get_user_token(
-        self, service_name: str, user_jwt: str, scopes: list = None
+        self, service_name: str, user_jwt: str, scopes: list,
+        oauth2_flow: str = "USER_FEDERATION",
     ) -> dict:
         """Get a service-specific token for a user via OAuth2 delegation.
 
         The user's JWT from the corporate IdP is exchanged for a
         service-specific token without the agent ever seeing raw credentials.
+        `scopes` and `oauth2_flow` are both required by the API.
         """
-        provider_arn = self.providers.get(service_name)
-        if not provider_arn:
+        provider_name = self.providers.get(service_name)
+        if not provider_name:
             raise ValueError(f"No provider registered for: {service_name}")
 
-        kwargs = {
-            "credentialProviderArn": provider_arn,
-            "workloadIdentityToken": user_jwt,
-        }
-        if scopes:
-            kwargs["scopes"] = scopes
-
-        response = self.data.get_resource_oauth2_access_token(**kwargs)
+        response = self.data.get_resource_oauth2_token(
+            workloadIdentityToken=user_jwt,
+            resourceCredentialProviderName=provider_name,
+            scopes=scopes,
+            oauth2Flow=oauth2_flow,
+        )
         return {
             "accessToken": response["accessToken"],
-            "tokenType": response.get("tokenType", "Bearer"),
-            "expiresIn": response.get("expiresIn"),
+            "sessionStatus": response.get("sessionStatus"),
         }
 
-    def get_api_key(self, service_name: str) -> str:
+    def get_api_key(self, service_name: str, workload_identity_token: str) -> str:
         """Get an API key for a service (not user-delegated)."""
-        provider_arn = self.providers.get(service_name)
-        if not provider_arn:
+        provider_name = self.providers.get(service_name)
+        if not provider_name:
             raise ValueError(f"No provider registered for: {service_name}")
 
-        response = self.data.get_api_key_credential(
-            credentialProviderArn=provider_arn,
+        response = self.data.get_resource_api_key(
+            workloadIdentityToken=workload_identity_token,
+            resourceCredentialProviderName=provider_name,
         )
         return response["apiKey"]
 
@@ -1528,33 +1531,36 @@ class PlatformIdentityManager:
         arguments: dict,
         user_jwt: str,
         service_name: str,
+        scopes: list,
     ) -> dict:
         """Call a Gateway tool with user-delegated credentials.
 
         This is the recommended pattern for enterprise agents:
         the user's identity flows through to the downstream service.
+        The Lambda backing the tool is the one that actually presents
+        `token` to the downstream service; the caller here only needs
+        `user_jwt` to authenticate to the gateway itself (CUSTOM_JWT).
         """
-        # Get service token for this user
-        token = self.get_user_token(service_name, user_jwt)
+        # Get a delegated, service-specific token for this user
+        token = self.get_user_token(service_name, user_jwt, scopes)
 
-        # Call tool through gateway with bearer token
-        response = self.data.invoke_gateway(
-            gatewayIdentifier=gateway_id,
-            method="tools/call",
-            payload=json.dumps(
-                {"name": tool_name, "arguments": arguments}
-            ).encode(),
-            # The bearer token is passed to the downstream service
+        # Call the tool over MCP, authenticated to the gateway with the user's JWT
+        gateway_url = self.control.get_gateway(gatewayIdentifier=gateway_id)["gatewayUrl"]
+        mcp_client = MCPClient(
+            lambda: streamablehttp_client(gateway_url, headers={"Authorization": f"Bearer {user_jwt}"})
         )
-        return json.loads(response["payload"].read())
+        with mcp_client:
+            result = mcp_client.call_tool_sync(
+                tool_use_id=f"{tool_name}-call", name=tool_name, arguments=arguments)
+        return {"result": str(result), "delegated_token": token}
 
 
 # Initialize the identity manager
 identity_manager = PlatformIdentityManager(data, control)
-identity_manager.register_provider("salesforce", sf_provider["arn"])
-identity_manager.register_provider("slack", slack_provider["arn"])
-identity_manager.register_provider("jira", jira_provider["arn"])
-identity_manager.register_provider("internal", internal_provider["arn"])
+identity_manager.register_provider("salesforce", sf_provider["name"])
+identity_manager.register_provider("slack", slack_provider["name"])
+identity_manager.register_provider("jira", jira_provider["name"])
+identity_manager.register_provider("internal", internal_provider["name"])
 ```
 
 ### Step 6: Build a Platform-Aware Agent
@@ -1606,6 +1612,16 @@ def check_handoff_context(customer_id: str, session_id: str) -> str:
     return "No handoff context. This is a new conversation."
 
 
+# Gateway is itself an MCP server -- connect once with the agent's own
+# service token (CUSTOM_JWT bearer, obtained from your IdP's M2M flow)
+AGENT_SERVICE_TOKEN = os.getenv("AGENT_SERVICE_TOKEN", "")  # fetched from your IdP at startup
+_gateway_url = control.get_gateway(gatewayIdentifier=GATEWAY_ID)["gatewayUrl"]
+_gateway_mcp_client = MCPClient(
+    lambda: streamablehttp_client(_gateway_url, headers={"Authorization": f"Bearer {AGENT_SERVICE_TOKEN}"})
+)
+_gateway_mcp_client.start()
+
+
 @tool
 def call_enterprise_tool(tool_name: str, arguments: dict) -> str:
     """Call any enterprise tool through the centralized gateway.
@@ -1617,13 +1633,9 @@ def call_enterprise_tool(tool_name: str, arguments: dict) -> str:
         tool_name: Name of the enterprise tool to call
         arguments: Tool arguments as a dictionary
     """
-    response = data.invoke_gateway(
-        gatewayIdentifier=GATEWAY_ID,
-        method="tools/call",
-        payload=json.dumps({"name": tool_name, "arguments": arguments}).encode(),
-    )
-    result = json.loads(response["payload"].read())
-    return json.dumps(result, default=str)
+    result = _gateway_mcp_client.call_tool_sync(
+        tool_use_id=f"{tool_name}-call", name=tool_name, arguments=arguments)
+    return json.dumps({"result": str(result)}, default=str)
 
 
 @tool
@@ -1740,7 +1752,7 @@ Deploy and invoke:
 
 ```bash
 # Deploy the agent
-agentcore deploy --name enterprise-support-agent --memory 2048 --timeout 3600
+agentcore deploy --agent enterprise-support-agent
 
 # Invoke with a customer request
 agentcore invoke '{
@@ -1813,7 +1825,7 @@ class PlatformOrchestrator:
             raise ValueError(f"Unknown agent: {agent_name}")
 
         response = data.invoke_agent_runtime(
-            agentRuntimeId=agent_config["arn"],
+            agentRuntimeArn=agent_config["arn"],
             payload=json.dumps(request).encode(),
         )
         return json.loads(response["payload"].read())
@@ -1823,17 +1835,17 @@ class PlatformOrchestrator:
 orchestrator = PlatformOrchestrator(GATEWAY_ID, memory_manager)
 orchestrator.register_agent(
     "support-agent",
-    "arn:aws:bedrock-agentcore:us-east-1:123456789012:agent-runtime/support-v2",
+    "arn:aws:bedrock-agentcore:us-east-1:123456789012:runtime/support-v2",
     capabilities=["customer-lookup", "ticketing", "case-management"],
 )
 orchestrator.register_agent(
     "sales-agent",
-    "arn:aws:bedrock-agentcore:us-east-1:123456789012:agent-runtime/sales-v1",
+    "arn:aws:bedrock-agentcore:us-east-1:123456789012:runtime/sales-v1",
     capabilities=["opportunity-management", "quoting", "proposals"],
 )
 orchestrator.register_agent(
     "sre-agent",
-    "arn:aws:bedrock-agentcore:us-east-1:123456789012:agent-runtime/sre-v1",
+    "arn:aws:bedrock-agentcore:us-east-1:123456789012:runtime/sre-v1",
     capabilities=["incident-response", "runbooks", "monitoring"],
 )
 ```
@@ -1964,7 +1976,7 @@ create_policy_denial_alarm()
 Always test Cedar policies in LOG_ONLY mode before switching to ENFORCE in production.
 
 ```python
-def test_policy_rollout(gateway_id: str, engine_arn: str, test_cases: list):
+def test_policy_rollout(gateway_id: str, engine_arn: str, test_cases: list, bearer_token: str):
     """Test policies in LOG_ONLY mode, then promote to ENFORCE if all pass."""
 
     # Step 1: Switch to LOG_ONLY
@@ -1972,33 +1984,31 @@ def test_policy_rollout(gateway_id: str, engine_arn: str, test_cases: list):
     control.update_gateway(
         gatewayIdentifier=gateway_id,
         policyEngineConfiguration={
-            "policyEngineArn": engine_arn,
-            "enforcementMode": "LOG_ONLY",
+            "arn": engine_arn,
+            "mode": "LOG_ONLY",
         },
     )
     time.sleep(10)  # Wait for propagation
 
-    # Step 2: Run test cases
+    # Step 2: Run test cases over MCP
+    gateway_url = control.get_gateway(gatewayIdentifier=gateway_id)["gatewayUrl"]
+    mcp_client = MCPClient(
+        lambda: streamablehttp_client(gateway_url, headers={"Authorization": f"Bearer {bearer_token}"})
+    )
     results = []
-    for test in test_cases:
-        print(f"\nTest: {test['name']}")
-        try:
-            response = data.invoke_gateway(
-                gatewayIdentifier=gateway_id,
-                method="tools/call",
-                payload=json.dumps(
-                    {"name": test["tool"], "arguments": test["arguments"]}
-                ).encode(),
-            )
-            result = json.loads(response["payload"].read())
-            actual = "ALLOW"
-        except Exception as e:
-            actual = "DENY" if "403" in str(e) or "Access" in str(e) else "ERROR"
-            result = str(e)
+    with mcp_client:
+        for test in test_cases:
+            print(f"\nTest: {test['name']}")
+            try:
+                mcp_client.call_tool_sync(
+                    tool_use_id=f"{test['tool']}-test", name=test["tool"], arguments=test["arguments"])
+                actual = "ALLOW"
+            except Exception as e:
+                actual = "DENY" if "403" in str(e) or "Access" in str(e) else "ERROR"
 
-        passed = actual == test["expected"]
-        results.append({"name": test["name"], "passed": passed, "actual": actual})
-        print(f"  Expected: {test['expected']}, Actual: {actual} -> {'PASS' if passed else 'FAIL'}")
+            passed = actual == test["expected"]
+            results.append({"name": test["name"], "passed": passed, "actual": actual})
+            print(f"  Expected: {test['expected']}, Actual: {actual} -> {'PASS' if passed else 'FAIL'}")
 
     # Step 3: Promote to ENFORCE if all pass
     all_passed = all(r["passed"] for r in results)
@@ -2007,8 +2017,8 @@ def test_policy_rollout(gateway_id: str, engine_arn: str, test_cases: list):
         control.update_gateway(
             gatewayIdentifier=gateway_id,
             policyEngineConfiguration={
-                "policyEngineArn": engine_arn,
-                "enforcementMode": "ENFORCE",
+                "arn": engine_arn,
+                "mode": "ENFORCE",
             },
         )
         print("Policies are now enforced in production.")
@@ -2054,7 +2064,7 @@ policy_test_cases = [
 ]
 
 # Run the test suite
-# test_policy_rollout(GATEWAY_ID, POLICY_ENGINE_ARN, policy_test_cases)
+# test_policy_rollout(GATEWAY_ID, POLICY_ENGINE_ARN, policy_test_cases, bearer_token="<JWT from your IdP>")
 ```
 
 ## Key Benefits
@@ -2091,17 +2101,19 @@ For an enterprise platform handling 1,000,000 monthly interactions across multip
 | **Gateway** | 3M tool calls + 1M searches, 200 tools indexed | ~$1,300 |
 | **Memory** | 1M short-term events, 100K long-term records, 200K retrievals | ~$475 |
 | **Identity** | Free via Runtime | $0 |
-| **Policy** | 3M authorization requests (Preview: free) | $75 (post-preview) |
+| **Policy** | 3M authorization requests | billed per 1M input tokens processed¹ |
 | **Observability** | 2TB span data, 1TB logs | ~$1,200 |
-| **Total** | | **~$6,550/month** |
+| **Total** | | **~$6,475/month + Policy usage** |
 
-**Cost per interaction**: ~$0.0066
+¹ Policy reached general availability and is billed on authorization-request input tokens; get a current per-token rate before estimating this line item.
+
+**Cost per interaction**: ~$0.0065 (excluding Policy)
 
 Compare this to the self-hosted alternative: 10+ EC2 instances, load balancers, NAT gateways, ECS/EKS management, credential vaults, policy engines, custom memory stores, and the engineering team to operate all of it. Conservative estimates put that at $15,000-25,000/month in infrastructure alone, plus $20,000+/month in engineering time.
 
 ### Free Tier
 
-New AWS customers receive **$200 in Free Tier credits** across all AgentCore services. Policy and Evaluations are currently free during preview.
+New AWS customers receive **$200 in Free Tier credits** across all AgentCore services. Policy and Evaluations are both generally available and billed on token usage, not free during preview.
 
 ### Cost Optimization
 

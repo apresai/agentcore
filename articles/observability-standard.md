@@ -284,7 +284,7 @@ by aws.endpoint.name
 **Trace tool invocation performance:**
 
 ```sql
-filter aws.operation.name = "InvokeGateway"
+filter tool.name != ""
 | stats avg(latency_ms) as avg_latency,
         percentile(latency_ms, 99) as p99_latency,
         count(*) as calls

@@ -1,6 +1,6 @@
 # AgentCore Runtime
 
-> Serverless hosting environment for AI agents with microVM isolation, 8-hour execution, and 100MB payload support.
+> Serverless hosting environment for AI agents with microVM isolation, 8-hour session support, and 100MB payload support.
 
 ## Quick Reference
 
@@ -11,6 +11,7 @@
 | `agentcore deploy` | Deploy agent to Runtime |
 | `agentcore invoke` | Invoke deployed agent |
 | `agentcore status` | Check deployment status |
+| `agentcore stop-session` | Stop an active runtime session |
 | `agentcore destroy` | Remove deployed agent |
 
 | SDK Client | Purpose |
@@ -39,6 +40,7 @@ Runtime supports agents built with any framework:
 - **Strands Agents** - AWS's native agent framework
 - **LangGraph** - LangChain's graph-based orchestration
 - **CrewAI** - Multi-agent collaboration framework
+- **AutoGen** - Multi-agent conversation framework
 - **OpenAI Agents SDK** - OpenAI's agent framework
 - **Google ADK** - Google's Agent Development Kit
 - **Custom agents** - Any Python-based agent
@@ -61,6 +63,7 @@ Each user session runs in a **dedicated microVM** providing:
 ### Protocol Support
 - **Model Context Protocol (MCP)** - Tool connectivity standard
 - **Agent to Agent (A2A)** - Inter-agent communication
+- **AG-UI** - Agent-to-frontend UI streaming (`AGUIApp`, `build_ag_ui_app`, `serve_ag_ui` in `bedrock_agentcore.runtime`)
 
 ---
 
@@ -74,6 +77,8 @@ pip install bedrock-agentcore-starter-toolkit
 
 Requires Python 3.10+.
 
+> The starter toolkit's own `--help` output now recommends the newer AgentCore CLI (`npm install -g @aws/agentcore`) for new projects, and prints a deprecation notice on `create`/`deploy` ("The Starter Toolkit CLI is no longer supported... New Bedrock AgentCore features are only accessible in the AgentCore CLI"). Set `AGENTCORE_SUPPRESS_RECOMMENDATION=1` to silence it. This reference documents the Python starter toolkit (`bedrock-agentcore-starter-toolkit` 0.3.10) since that is what ships today; it has not been re-verified against `@aws/agentcore`.
+
 ### agentcore create
 
 Bootstrap a new agent project with framework and model selection.
@@ -86,12 +91,15 @@ agentcore create [OPTIONS]
 
 | Option | Description | Default |
 |--------|-------------|---------|
-| `--framework` | Agent framework (strands, langgraph, openai, google) | Interactive |
-| `--model-provider` | Model provider (bedrock, openai, anthropic, google) | Interactive |
-| `--output` | Output type (python, terraform, cdk) | python |
-| `--name` | Project name | my-agent |
-| `--with-memory` | Include memory configuration | false |
-| `--with-gateway` | Include gateway configuration | false |
+| `--project-name`, `-p` | Project name to create | Interactive |
+| `--template`, `-t` | Template: `basic` (runtime code only) or `production` (adds MCP setup + IaC) | `basic` |
+| `--agent-framework` | Agent SDK: `Strands`, `LangChain_LangGraph`, `GoogleADK`, `OpenAIAgents`, `AutoGen`, `CrewAI` | `Strands` |
+| `--model-provider`, `-mp` | Model provider: `Bedrock`, `OpenAI`, `Anthropic`, `Gemini` | `Bedrock` |
+| `--provider-api-key`, `-key` | API key for the model provider | None |
+| `--iac` | Infrastructure as code: `CDK` or `Terraform` | `CDK` |
+| `--memory`, `-m` | Memory configuration: `STM_ONLY`, `STM_AND_LTM`, `NO_MEMORY` | Interactive |
+| `--non-interactive` | Run without prompts | false |
+| `--venv` / `--no-venv` | Auto-create a venv and install dependencies | `--venv` |
 
 **Examples:**
 
@@ -99,19 +107,21 @@ agentcore create [OPTIONS]
 # Interactive creation
 agentcore create
 
-# Create Strands agent with Bedrock
-agentcore create --framework strands --model-provider bedrock --name my-agent
+# Create a Strands agent with Bedrock
+agentcore create --project-name my-agent --agent-framework Strands --model-provider Bedrock
 
-# Create with infrastructure as code
-agentcore create --framework langgraph --output cdk
+# Create with Terraform instead of CDK
+agentcore create --project-name my-agent --agent-framework LangChain_LangGraph --iac Terraform
 
-# Create with memory and gateway
-agentcore create --with-memory --with-gateway
+# Create with short-term + long-term memory, non-interactively
+agentcore create --project-name my-agent --memory STM_AND_LTM --non-interactive
 ```
+
+`agentcore create import` can also generate an AgentCore project from an existing Amazon Bedrock Agent.
 
 ### agentcore dev
 
-Start local development server for testing.
+Start a local development server for your agent with hot reloading.
 
 ```bash
 agentcore dev [OPTIONS]
@@ -121,9 +131,8 @@ agentcore dev [OPTIONS]
 
 | Option | Description | Default |
 |--------|-------------|---------|
-| `--port` | Local server port | 8080 |
-| `--host` | Host to bind | localhost |
-| `--reload` | Auto-reload on changes | true |
+| `--port`, `-p` | Local server port | 8080 |
+| `--env`, `-env` | Environment variables (`KEY=VALUE`), repeatable | None |
 
 **Example:**
 
@@ -135,60 +144,72 @@ agentcore dev
 agentcore dev --port 9000
 ```
 
+There is no `--host`, `--reload`, or `--watch` flag; the dev server always binds locally and reloads automatically.
+
 ### agentcore deploy
 
-Deploy agent to AgentCore Runtime.
+Deploy the agent to AgentCore Runtime. (Formerly `agentcore launch`; that command name no longer exists.)
 
 ```bash
 agentcore deploy [OPTIONS]
 ```
 
+Deploy has three modes: cloud runtime (default - builds ARM64 containers in the cloud via CodeBuild, no local Docker needed), `--local` (build and run locally), and `--local-build` (build locally, deploy to cloud runtime).
+
 **Options:**
 
 | Option | Description | Default |
 |--------|-------------|---------|
-| `--region` | AWS region | us-east-1 |
-| `--name` | Deployment name | from project |
-| `--role-arn` | Custom IAM role ARN | auto-created |
-| `--memory` | Memory allocation (MB) | 512 |
-| `--timeout` | Timeout (seconds) | 900 |
+| `--agent`, `-a` | Agent name (see `agentcore configure list`) | from config |
+| `--local`, `-l` | Run locally instead of deploying | false |
+| `--local-build`, `-lb` | Build locally, deploy to cloud runtime (container deployments only) | false |
+| `--image-tag`, `-t` | Custom image tag | auto-generated timestamp |
+| `--auto-update-on-conflict`, `-auc` | Update existing agent instead of failing on conflict | false |
+| `--force-rebuild-deps`, `-frd` | Force rebuild of dependencies (direct-code-deploy only) | false |
+| `--env`, `-env` | Environment variables (`KEY=VALUE`), repeatable | None |
 
-**What it does:**
-1. Packages Python code into zip file
-2. Creates/updates IAM execution role
-3. Deploys to AgentCore Runtime
-4. Configures CloudWatch logging
-5. Returns agent ARN and endpoint
+There is no `--region`, `--role-arn`, `--memory`, or `--timeout` flag on `deploy`. Region and IAM role are set once via `agentcore configure` (`--region`, `--execution-role`), not passed per deploy; session idle timeout and max lifetime are also `configure`-level flags (`--idle-timeout`, `--max-lifetime`, both 60-28800 seconds).
 
 **Examples:**
 
 ```bash
-# Basic deploy
+# Deploy to the cloud (default)
 agentcore deploy
 
-# Deploy with custom settings
-agentcore deploy --region us-west-2 --memory 1024 --timeout 3600
+# Run locally for testing
+agentcore deploy --local
 
-# Deploy with existing role
-agentcore deploy --role-arn arn:aws:iam::123456789012:role/MyAgentRole
+# Build locally, deploy to Runtime
+agentcore deploy --local-build
+
+# Deploy and overwrite an existing agent with the same name
+agentcore deploy --auto-update-on-conflict
 ```
 
 ### agentcore invoke
 
-Invoke a deployed agent with a prompt.
+Invoke a deployed agent with a JSON payload.
 
 ```bash
 agentcore invoke [OPTIONS] PAYLOAD
 ```
 
+`PAYLOAD` is a required positional argument and must be JSON, not a bare string.
+
 **Options:**
 
 | Option | Description | Default |
 |--------|-------------|---------|
-| `--dev` | Invoke local dev server | false |
-| `--session-id` | Session ID for context | auto-generated |
-| `--stream` | Stream response | true |
-| `--timeout` | Request timeout (seconds) | 120 |
+| `--agent`, `-a` | Agent name | from config |
+| `--session-id`, `-s` | Session ID for context | auto-generated |
+| `--bearer-token`, `-bt` | Bearer token for OAuth authentication | None |
+| `--local`, `-l` | Send request to a running local container | false |
+| `--dev`, `-d` | Send request to the local dev server | false |
+| `--port` | Port for the local dev server | 8080 |
+| `--user-id`, `-u` | User ID for authorization flows | None |
+| `--headers` | Custom headers (`Header1:value,Header2:value2`), auto-prefixed with `X-Amzn-Bedrock-AgentCore-Runtime-Custom-` | None |
+
+There is no `--stream` or `--timeout` flag, and no `--debug` flag.
 
 **Examples:**
 
@@ -196,16 +217,16 @@ agentcore invoke [OPTIONS] PAYLOAD
 # Invoke deployed agent
 agentcore invoke '{"prompt": "Hello, tell me a joke"}'
 
-# Invoke local dev server
-agentcore invoke --dev "Hello!"
+# Invoke the local dev server (payload is still JSON)
+agentcore invoke --dev '{"prompt": "Hello!"}'
 
-# Continue conversation with session
+# Continue a conversation with an explicit session
 agentcore invoke --session-id abc123 '{"prompt": "Tell me another"}'
 ```
 
 ### agentcore status
 
-Check deployment status.
+Get deployment status including config and runtime details.
 
 ```bash
 agentcore status [OPTIONS]
@@ -215,12 +236,29 @@ agentcore status [OPTIONS]
 
 | Option | Description | Default |
 |--------|-------------|---------|
-| `--name` | Agent name | from project |
-| `--watch` | Watch for changes | false |
+| `--agent`, `-a` | Agent name | from config |
+| `--verbose`, `-v` | Verbose JSON output of config, agent, and endpoint status | false |
+
+There is no `--watch` flag.
+
+### agentcore stop-session
+
+Stop an active runtime session, freeing resources without waiting for the idle timeout.
+
+```bash
+agentcore stop-session [OPTIONS]
+```
+
+**Options:**
+
+| Option | Description | Default |
+|--------|-------------|---------|
+| `--session-id`, `-s` | Session ID to stop | last invoked session |
+| `--agent`, `-a` | Agent name | from config |
 
 ### agentcore destroy
 
-Remove deployed agent and clean up resources.
+Remove deployed agent and clean up resources (endpoint, agent runtime, ECR images, CodeBuild project, IAM execution role if unshared, and deployment config; the ECR repository itself is kept unless `--delete-ecr-repo` is passed).
 
 ```bash
 agentcore destroy [OPTIONS]
@@ -230,8 +268,10 @@ agentcore destroy [OPTIONS]
 
 | Option | Description | Default |
 |--------|-------------|---------|
-| `--name` | Agent name | from project |
-| `--force` | Skip confirmation | false |
+| `--agent`, `-a` | Agent name | from config |
+| `--dry-run` | Preview what would be destroyed | false |
+| `--force` | Skip confirmation prompts | false |
+| `--delete-ecr-repo` | Also delete the ECR repository | false |
 
 ---
 
@@ -406,7 +446,11 @@ if "text/event-stream" in response.get("contentType", ""):
 | `payload` | bytes | Yes | Request payload (up to 100MB) |
 | `runtimeSessionId` | string | No | Session ID for context |
 | `qualifier` | string | No | Version qualifier |
-| `bearerAuthToken` | string | No | OAuth bearer token |
+| `contentType` / `accept` | string | No | Request/response content negotiation |
+| `runtimeUserId` | string | No | User ID for authorization flows |
+| `traceId` / `traceParent` / `traceState` / `baggage` | string | No | Distributed-tracing propagation headers |
+
+There is no `bearerAuthToken` field on this API call; OAuth bearer tokens are sent as the standard HTTP `Authorization` header (the CLI's `--bearer-token` flag sets this for you), not as a request parameter.
 
 **Response:**
 
@@ -414,7 +458,8 @@ if "text/event-stream" in response.get("contentType", ""):
 |-------|------|-------------|
 | `contentType` | string | Response content type |
 | `response` | StreamingBody | Response data stream |
-| `sessionId` | string | Session identifier |
+| `runtimeSessionId` | string | Session identifier |
+| `statusCode` | integer | HTTP-style status code |
 
 ---
 
@@ -424,10 +469,11 @@ if "text/event-stream" in response.get("contentType", ""):
 
 | Variable | Description | Default |
 |----------|-------------|---------|
-| `AWS_REGION` | AWS region | us-east-1 |
-| `AGENTCORE_LOG_LEVEL` | Logging level | INFO |
-| `AGENTCORE_TIMEOUT` | Request timeout (seconds) | 900 |
+| `AWS_REGION` | AWS region used by boto3/the CLI | us-east-1 |
 | `OTEL_EXPORTER_OTLP_ENDPOINT` | OTEL endpoint | CloudWatch |
+| `AGENTCORE_SUPPRESS_RECOMMENDATION` | Set to `1` to silence the starter-toolkit's `@aws/agentcore` deprecation banner | unset |
+
+There is no `AGENTCORE_LOG_LEVEL` or `AGENTCORE_TIMEOUT` environment variable anywhere in the SDK or CLI.
 
 ### Runtime Requirements
 
@@ -445,7 +491,7 @@ from bedrock_agentcore.runtime import BedrockAgentCoreApp
 
 app = BedrockAgentCoreApp()
 
-@app.entrypoint()
+@app.entrypoint
 async def main(request):
     prompt = request.get("prompt", "")
     # Your agent logic here
@@ -454,6 +500,8 @@ async def main(request):
 if __name__ == "__main__":
     app.run()
 ```
+
+`entrypoint` is a plain decorator (`entrypoint(self, func)`), not a decorator factory - use `@app.entrypoint`, never `@app.entrypoint()`.
 
 ---
 
@@ -468,7 +516,7 @@ from bedrock_agentcore.runtime import BedrockAgentCoreApp
 
 # Initialize model
 model = BedrockModel(
-    model_id="anthropic.claude-sonnet-4-6",
+    model_id="us.anthropic.claude-haiku-4-5-20251001-v1:0",
     region_name="us-east-1"
 )
 
@@ -481,7 +529,7 @@ agent = Agent(
 # AgentCore Runtime wrapper
 app = BedrockAgentCoreApp()
 
-@app.entrypoint()
+@app.entrypoint
 async def main(request):
     prompt = request.get("prompt", "")
     response = agent(prompt)
@@ -579,7 +627,7 @@ class AgentState(TypedDict):
 graph = StateGraph(AgentState)
 
 def process_message(state):
-    model = ChatBedrock(model_id="anthropic.claude-sonnet-4-6")
+    model = ChatBedrock(model_id="us.anthropic.claude-haiku-4-5-20251001-v1:0")
     response = model.invoke(state["messages"])
     return {"response": response.content}
 
@@ -592,7 +640,7 @@ agent = graph.compile()
 # AgentCore wrapper
 app = BedrockAgentCoreApp()
 
-@app.entrypoint()
+@app.entrypoint
 async def main(request):
     prompt = request.get("prompt", "")
     result = agent.invoke({"messages": [{"role": "user", "content": prompt}]})
@@ -623,10 +671,11 @@ async def handle_message(message):
     # Process A2A message
     return {"response": f"Received: {message.content}"}
 
-# Run on AgentCore (A2A uses port 9000)
-app = BedrockAgentCoreApp(protocol="A2A")
+# Run on AgentCore (A2A uses port 9000). BedrockAgentCoreApp takes no
+# protocol argument; A2A has its own builder in bedrock_agentcore.runtime.
+app = BedrockAgentCoreApp()
 
-@app.entrypoint()
+@app.entrypoint
 async def main(request):
     return await server.process(request)
 
@@ -645,99 +694,95 @@ from bedrock_agentcore.memory import MemoryClient
 from bedrock_agentcore.runtime import BedrockAgentCoreApp
 from strands import Agent
 
-memory_client = MemoryClient(memory_id="my-memory-id")
+memory_client = MemoryClient(region_name="us-east-1")
 app = BedrockAgentCoreApp()
 
-@app.entrypoint()
+@app.entrypoint
 async def main(request):
     session_id = request.get("session_id")
+    actor_id = request.get("user_id", "default-user")
     prompt = request.get("prompt")
 
-    # Retrieve relevant memories
+    # Retrieve relevant long-term memories (namespace is where strategies wrote them)
     memories = memory_client.retrieve_memories(
-        session_id=session_id,
-        query=prompt
+        memory_id=MEMORY_ID,
+        namespace=f"/facts/{actor_id}",
+        query=prompt,
+        top_k=5,
     )
 
     # Include memories in context
-    context = "\n".join([m["content"] for m in memories])
+    context = "\n".join(m["content"]["text"] for m in memories)
     enhanced_prompt = f"Context:\n{context}\n\nUser: {prompt}"
 
     # Process with agent
     response = agent(enhanced_prompt)
 
-    # Store interaction
+    # Store interaction. messages are (text, role) tuples, not dicts.
     memory_client.create_event(
+        memory_id=MEMORY_ID,
+        actor_id=actor_id,
         session_id=session_id,
         messages=[
-            {"role": "user", "content": prompt},
-            {"role": "assistant", "content": str(response)}
-        ]
+            (prompt, "USER"),
+            (str(response), "ASSISTANT"),
+        ],
     )
 
     return {"response": str(response)}
 ```
+
+See [AgentCore Memory](./02-memory.md) for the full `MemoryClient` surface, namespace conventions, and the exact shape of retrieved memory records.
 
 ### With AgentCore Gateway
 
 ```python
 from bedrock_agentcore.gateway import GatewayClient
 from bedrock_agentcore.runtime import BedrockAgentCoreApp
-from strands import Agent
-from strands.tools import tool
 
-gateway = GatewayClient(gateway_id="my-gateway-id")
-
-# Get tools from gateway
-mcp_tools = gateway.list_tools()
-
-@tool
-def call_gateway_tool(tool_name: str, arguments: dict):
-    """Call a tool through the gateway."""
-    return gateway.call_tool(tool_name, arguments)
-
-agent = Agent(
-    model=model,
-    tools=[call_gateway_tool],
-    system_prompt="Use available tools to help users."
-)
+# GatewayClient manages gateway/target resources (create, get, list, update,
+# delete); it does not proxy individual tool calls. Agents call tools over
+# MCP directly against the gateway's endpoint URL - see AgentCore Gateway for
+# the MCP client pattern and authentication.
+gateway = GatewayClient(region_name="us-east-1")
 
 app = BedrockAgentCoreApp()
 
-@app.entrypoint()
+@app.entrypoint
 async def main(request):
+    # Look up the gateway's MCP endpoint once (or read it from config)
+    gw = gateway.get_gateway_by_name(name="my-gateway")
+    gateway_url = gw["gatewayUrl"]
+
+    # Hand gateway_url to your framework's MCP tool integration (Strands,
+    # LangGraph, or a raw `mcp` client) so the agent can call tools directly.
     return {"response": str(agent(request["prompt"]))}
 ```
 
 ### With AgentCore Browser
 
 ```python
-from bedrock_agentcore.browser import BrowserClient
+from bedrock_agentcore.tools.browser_client import BrowserClient
 from bedrock_agentcore.runtime import BedrockAgentCoreApp
 
-browser = BrowserClient()
 app = BedrockAgentCoreApp()
 
-@app.entrypoint()
+@app.entrypoint
 async def main(request):
-    url = request.get("url")
-    action = request.get("action", "screenshot")
+    # BrowserClient takes region positionally; there is no create_session().
+    browser = BrowserClient("us-east-1")
 
-    # Start browser session
-    session = browser.start_session(timeout_seconds=300)
+    # start() launches a session and returns its identifier; stop() ends it.
+    session_id = browser.start(session_timeout_seconds=300)
 
     try:
-        # Navigate and interact
-        await session.navigate(url)
-
-        if action == "screenshot":
-            screenshot = await session.screenshot()
-            return {"image": screenshot}
-        elif action == "extract":
-            content = await session.get_page_text()
-            return {"content": content}
+        # Actual page interaction (navigate, screenshot, extract text) happens
+        # over CDP/Playwright using generate_ws_headers() to connect - see
+        # AgentCore Browser for the full connection pattern.
+        ws_url, headers = browser.generate_ws_headers()
+        return {"session_id": session_id, "ws_url": ws_url}
     finally:
-        session.stop()
+        browser.stop()
 ```
 
 ---
@@ -750,7 +795,7 @@ async def main(request):
 
 3. **Implement retry logic** - Use exponential backoff for throttling and transient errors.
 
-4. **Set appropriate timeouts** - Configure timeouts based on expected agent execution time (up to 8 hours).
+4. **Size lifecycle timeouts deliberately** - `idleRuntimeSessionTimeout` (default 15 min) and `maxLifetime` (default 8 hr, hard cap) are both set at `agentcore configure` time via `--idle-timeout`/`--max-lifetime`, not per invoke.
 
 5. **Use ARM64 architecture** - Runtime uses Graviton2 (ARM64) for cost efficiency. Build containers for `linux/arm64`.
 
@@ -778,23 +823,31 @@ async def main(request):
 | `ThrottlingException` | Rate limit exceeded | Implement exponential backoff |
 | `ServiceException` | Internal error | Retry with backoff, check service health |
 | `ModelAccessDenied` | Model not enabled | Enable model in Bedrock console |
-| `Port 8080 in use` | Local conflict | Kill process or use `--port` option |
+| `Port 8080 in use` | Local conflict | Use `agentcore dev --port 9000` |
 
 ### Debugging Tips
 
 ```bash
 # Check agent status
-agentcore status --name my-agent
+agentcore status --agent my-agent
 
-# View CloudWatch logs
-aws logs tail /aws/bedrock-agentcore/runtimes/<agent_id> --follow
+# List recent traces for the last invoked session (or --session-id / --agent)
+agentcore obs list
 
-# Test locally with verbose logging
-AGENTCORE_LOG_LEVEL=DEBUG agentcore dev
+# Show a specific trace with full detail
+agentcore obs show --trace-id <trace-id>
 
-# Invoke with debug output
-agentcore invoke --debug '{"prompt": "test"}'
+# View CloudWatch logs directly (log group includes the endpoint name)
+aws logs tail /aws/bedrock-agentcore/runtimes/<agent_id>-<endpoint_name> --follow
+
+# Test locally - the dev server streams its own logs to the terminal
+agentcore dev
+
+# Invoke with a JSON payload (there is no --debug flag)
+agentcore invoke '{"prompt": "test"}'
 ```
+
+`agentcore obs` replaces any earlier `logs`/`list`/`delete`/`describe` commands; its real subcommands are `list` (enumerate traces for a session) and `show` (visualize one trace or all traces in a session) - there is no `agentcore obs status` or `agentcore obs destroy`.
 
 ### IAM Permission Issues
 
@@ -833,18 +886,19 @@ Required IAM policy for agent execution:
 
 ## Limits & Quotas
 
-| Resource | Default Limit | Adjustable |
-|----------|--------------|------------|
-| Agent runtimes per account | 100 | Yes |
-| Endpoints per runtime | 10 | Yes |
-| Concurrent sessions per endpoint | 1000 | Yes |
-| Maximum execution time | 8 hours | No |
+Verified against the AgentCore Runtime quota tables (docs.aws.amazon.com/bedrock-agentcore, checked 2026-07-25).
+
+| Resource | Limit | Adjustable |
+|----------|-------|------------|
+| Synchronous request timeout | 15 minutes | No |
+| Idle session timeout | 15 minutes of inactivity | Yes - `idleRuntimeSessionTimeout`, 60-28800s |
+| Maximum session duration (max lifetime) | 8 hours | Yes - `maxLifetime`, 60-28800s |
+| Maximum asynchronous job duration | 8 hours | No |
 | Maximum payload size | 100 MB | No |
-| Minimum memory | 128 MB | No |
-| Maximum memory | 10,240 MB | No |
-| Minimum billing increment | 1 second | No |
-| Session timeout (default) | 15 minutes | Yes |
-| Session timeout (max) | 8 hours | No |
+| Hardware per session | 2 vCPU / 8 GB | No |
+| Active session workloads per account | 5,000 in us-east-1 & us-west-2; 2,500 elsewhere | Yes - Service Quotas |
+
+There is no documented per-agent memory quota in MB; the nearest figure AWS documents is the 2vCPU/8GB hardware allocation above, and it is scoped per session, not per agent. For the full, current quota table see the [AgentCore limits page](https://docs.aws.amazon.com/bedrock-agentcore/latest/devguide/bedrock-agentcore-limits.html).
 
 ---
 
@@ -864,14 +918,13 @@ AgentCore Runtime uses consumption-based pricing:
 ### Cost Optimization Tips
 
 1. **I/O wait is free** - When waiting for LLM responses, you're not charged for CPU.
-2. **Right-size memory** - Start with 512MB, increase if needed.
+2. **Right-size memory** - Start small, increase if needed.
 3. **Use ARM64** - Graviton2 is more cost-effective than x86.
 4. **Enable observability** - Monitor usage to optimize.
 
 ### Free Tier
 
-- **$200 free credits** for new AgentCore customers
-- Preview period: Free until September 16, 2025
+New AWS customers receive up to $200 in Free Tier credits for AgentCore. See the [AgentCore pricing page](https://aws.amazon.com/bedrock/agentcore/pricing/) for current terms.
 
 ---
 
