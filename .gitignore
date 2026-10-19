@@ -91,3 +91,6 @@ application_default_credentials.json
 # AgentCore CLI
 .bedrock_agentcore.yaml
 .bedrock_agentcore/
+
+# Claude Code worktrees
+.claude/worktrees/
