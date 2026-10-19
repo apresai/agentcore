@@ -4,9 +4,7 @@
 bedrock-agentcore>=1.18.1
 boto3>=1.43.0
 
-# Security floors for transitive dependencies (not imported directly).
-# They keep an older environment from satisfying the install with a
-# release that has a known advisory. Raised 2026-10-18.
+# Security floors for transitive deps (not imported directly), 2026-10-18.
 anyio>=4.14.2
 h11>=0.16.0
 idna>=3.15

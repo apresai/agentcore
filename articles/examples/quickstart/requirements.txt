@@ -10,9 +10,7 @@ bedrock-agentcore-starter-toolkit>=0.3.10
 # Agent framework (Strands is the recommended starting point)
 strands-agents>=1.50.0
 
-# Security floors for transitive dependencies (not imported directly).
-# They keep an older environment from satisfying the install with a
-# release that has a known advisory. Raised 2026-10-18.
+# Security floors for transitive deps (not imported directly), 2026-10-18.
 httpcore2>=2.10.0
 httpx2>=2.12.0
 python-multipart>=0.0.31

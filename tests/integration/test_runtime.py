@@ -26,31 +26,37 @@ class TestRuntime:
         "✓ Ready for deployment!",
     ]
 
+    @pytest.fixture(scope="class")
+    @classmethod
+    def demo_output(cls, run_demo):
+        """Ask Deep Thought once and share the answer across all tests."""
+        return run_demo(cls.DEMO, timeout=cls.TIMEOUT, args=cls.ARGS)
+
     @pytest.mark.integration
     @pytest.mark.fast
-    def test_runs_successfully(self, run_demo):
-        stdout, stderr, code = run_demo(self.DEMO, timeout=self.TIMEOUT, args=self.ARGS)
+    def test_runs_successfully(self, demo_output):
+        stdout, stderr, code = demo_output
         assert_no_errors(stdout, stderr, code)
         assert_success(stdout, self.SUCCESS)
 
     @pytest.mark.integration
     @pytest.mark.fast
-    def test_answer_is_42(self, run_demo):
+    def test_answer_is_42(self, demo_output):
         """Deep Thought's answer must appear in the output."""
-        stdout, _, _ = run_demo(self.DEMO, timeout=self.TIMEOUT, args=self.ARGS)
+        stdout, _, _ = demo_output
         assert "42" in stdout, "The Answer to Life, the Universe and Everything is missing"
 
     @pytest.mark.integration
     @pytest.mark.fast
-    def test_deep_thought_banner(self, run_demo):
+    def test_deep_thought_banner(self, demo_output):
         """The demo should show the Deep Thought banner."""
-        stdout, _, _ = run_demo(self.DEMO, timeout=self.TIMEOUT, args=self.ARGS)
+        stdout, _, _ = demo_output
         assert "DEEP THOUGHT" in stdout, "Deep Thought banner missing"
 
     @pytest.mark.integration
     @pytest.mark.fast
-    def test_deployment_commands_shown(self, run_demo):
-        stdout, _, _ = run_demo(self.DEMO, timeout=self.TIMEOUT, args=self.ARGS)
+    def test_deployment_commands_shown(self, demo_output):
+        stdout, _, _ = demo_output
         assert "agentcore deploy" in stdout
 
 
