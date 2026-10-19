@@ -12,3 +12,8 @@ strands-agents>=1.50.0
 
 # AWS SDK for lower-level access
 boto3>=1.43.0
+
+# Security floors for transitive deps (not imported directly), 2026-10-18.
+httpcore2>=2.10.0
+httpx2>=2.12.0
+python-multipart>=0.0.31

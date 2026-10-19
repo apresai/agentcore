@@ -6,3 +6,7 @@ bedrock-agentcore-starter-toolkit>=0.3.10
 boto3>=1.43.0
 langgraph>=1.2.0
 langchain-aws>=1.6.0
+
+# Security floors for transitive deps (not imported directly), 2026-10-18.
+httpcore2>=2.10.0
+httpx2>=2.12.0

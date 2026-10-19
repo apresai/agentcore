@@ -23,9 +23,10 @@ class TestMemory:
     ]
 
     @pytest.fixture(scope="class")
-    def demo_output(self, run_demo):
+    @classmethod
+    def demo_output(cls, run_demo):
         """Run the memory demo once and share output across all tests."""
-        stdout, stderr, code = run_demo(self.DEMO, timeout=self.TIMEOUT)
+        stdout, stderr, code = run_demo(cls.DEMO, timeout=cls.TIMEOUT)
         return stdout, stderr, code
 
     @pytest.mark.integration
