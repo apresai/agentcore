@@ -69,7 +69,7 @@ def aws_region() -> str:
 # Demo runner fixture
 # ---------------------------------------------------------------------------
 
-@pytest.fixture
+@pytest.fixture(scope="session")
 def run_demo():
     """
     Fixture that returns a callable to run any demo by name.
@@ -82,6 +82,7 @@ def run_demo():
         demo_name: str,
         timeout: int = 600,
         env_vars: dict | None = None,
+        args: list[str] | None = None,
     ) -> Tuple[str, str, int]:
         demo_dir = EXAMPLES_DIR / demo_name
         demo_script = demo_dir / "main.py"
@@ -99,7 +100,7 @@ def run_demo():
             env.update(env_vars)
 
         result = subprocess.run(
-            [python, str(demo_script)],
+            [python, str(demo_script), *(args or [])],
             capture_output=True,
             text=True,
             timeout=timeout,

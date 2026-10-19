@@ -16,6 +16,9 @@ class TestRuntime:
 
     DEMO = "runtime"
     TIMEOUT = 120
+    # main.py starts the AgentCore server by default; --demo runs the
+    # local walkthrough and exits.
+    ARGS = ["--demo"]
 
     SUCCESS = [
         "✓ Agent created successfully",
@@ -26,7 +29,7 @@ class TestRuntime:
     @pytest.mark.integration
     @pytest.mark.fast
     def test_runs_successfully(self, run_demo):
-        stdout, stderr, code = run_demo(self.DEMO, timeout=self.TIMEOUT)
+        stdout, stderr, code = run_demo(self.DEMO, timeout=self.TIMEOUT, args=self.ARGS)
         assert_no_errors(stdout, stderr, code)
         assert_success(stdout, self.SUCCESS)
 
@@ -34,20 +37,20 @@ class TestRuntime:
     @pytest.mark.fast
     def test_answer_is_42(self, run_demo):
         """Deep Thought's answer must appear in the output."""
-        stdout, _, _ = run_demo(self.DEMO, timeout=self.TIMEOUT)
+        stdout, _, _ = run_demo(self.DEMO, timeout=self.TIMEOUT, args=self.ARGS)
         assert "42" in stdout, "The Answer to Life, the Universe and Everything is missing"
 
     @pytest.mark.integration
     @pytest.mark.fast
     def test_deep_thought_banner(self, run_demo):
         """The demo should show the Deep Thought banner."""
-        stdout, _, _ = run_demo(self.DEMO, timeout=self.TIMEOUT)
+        stdout, _, _ = run_demo(self.DEMO, timeout=self.TIMEOUT, args=self.ARGS)
         assert "DEEP THOUGHT" in stdout, "Deep Thought banner missing"
 
     @pytest.mark.integration
     @pytest.mark.fast
     def test_deployment_commands_shown(self, run_demo):
-        stdout, _, _ = run_demo(self.DEMO, timeout=self.TIMEOUT)
+        stdout, _, _ = run_demo(self.DEMO, timeout=self.TIMEOUT, args=self.ARGS)
         assert "agentcore deploy" in stdout
 
 
